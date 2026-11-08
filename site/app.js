@@ -6,7 +6,8 @@ const $ = (id) => document.getElementById(id);
 
 const state = {
   model: "seedance-2-5",
-  mode: "ref",
+  mode: "t2v",
+  style: "real",
   files: [], // { id, type, name, role, roleTouched, url, demo }
 };
 let uid = 0;
@@ -215,135 +216,225 @@ function renderFiles() {
 
 /* ---------- Сборка промпта ---------- */
 
+const TIME_PHR = {
+  dawn: ["at dawn", "на рассвете"], day: ["during the day", "днём"], golden: ["at sunset, golden hour", "на закате, в золотой час"], night: ["at night", "ночью"],
+};
+
+function readForm() {
+  return {
+    dur: Number($("duration").value), aspect: $("aspect").value,
+    idea: $("idea").value.trim(), ending: $("ending").value.trim(), speech: $("speech").value.trim(),
+    light: $("light").value, camera: $("camera").value, take: $("take").value, music: $("music").value,
+    sound: $("sound").checked, noText: $("noText").checked,
+    style: state.style, rig: $("rig").value, bg: $("bg").value, toon: $("toon").value,
+    macro: $("macro").checked, infer: $("infer").checked,
+  };
+}
+
+/* Итог разбора с учётом переключателя «додумывать» */
+function scene(f) {
+  const a = analyzeIdea(f.idea);
+  if (!f.infer) {
+    if (a.seasonInferred) a.season = null;
+    if (a.weatherInferred) a.weather = null;
+    if (a.timeInferred) a.time = null;
+  }
+  a.rigId = f.style === "real" ? (f.rig === "auto" ? autoRig(a, f.aspect) : f.rig) : null;
+  return a;
+}
+
 function buildPrompt() {
   const m = model();
   const mode = state.mode;
-  const dur = Number($("duration").value);
-  const aspect = $("aspect").value;
-  const idea = $("idea").value.trim();
-  const ending = $("ending").value.trim();
-  const speech = $("speech").value.trim();
-  const light = $("light").value;
-  const camera = $("camera").value;
-  const take = $("take").value;
-  const sound = $("sound").checked;
-  const realism = $("realism").checked;
-  const noText = $("noText").checked;
-  const music = $("music").value;
+  const f = readForm();
+  const a = scene(f);
+  const real = f.style === "real";
+  const toon = TOON[f.toon];
 
   const en = [], ru = [];
   const add = (pair) => { en.push(pair[0]); ru.push(pair[1]); };
   const head = (e, r) => add([`\n${e}`, `\n${r}`]);
 
-  const usable = usableFiles();
-  const tagged = usable.map((f) => ({ ...f, tag: tagFor(f) }));
-  const byRole = (r) => tagged.filter((f) => f.role === r);
+  const tagged = usableFiles().map((x) => ({ ...x, tag: tagFor(x) }));
+  const byRole = (r) => tagged.filter((x) => x.role === r);
   const identity = byRole("identity");
+  const product = byRole("product")[0];
+  const location = byRole("location")[0];
   const editSrc = byRole("edit_source")[0];
   const extendSrc = byRole("extend_source")[0];
+  const hero = a.subjects[0];
+  const human = a.subjects.some((x) => x.kind === "human") || identity.length > 0;
 
   // GOAL
-  const ideaEn = idea ? `Scene idea, author's words in Russian: «${idea}».` : "Scene idea: [describe the event].";
-  const ideaRu = idea ? `Идея сцены: «${idea}».` : "Идея сцены: [опишите событие].";
+  const kindEn = real ? "photorealistic live-action" : `${toon.label === "3D-анимация" ? "stylized 3D animated" : toon.label === "Аниме" ? "anime-style 2D animated" : toon.label === "Пластилин / стоп-моушен" ? "claymation stop-motion" : toon.label === "Книжная иллюстрация" ? "animated storybook illustration" : "hand-drawn 2D animated"}`;
+  const kindRu = real ? "фотореалистичный, как живая съёмка" : toon.label.toLowerCase();
   if (mode === "edit" && editSrc) {
-    add([`GOAL: Edit ${editSrc.tag}. Change only what the idea describes; everything else stays as in the source. ${ideaEn}`,
-         `ЦЕЛЬ: Отредактировать ${editSrc.tag}. Изменить только то, что описано в идее; всё остальное остаётся как в исходнике. ${ideaRu}`]);
+    add([`GOAL: Edit ${editSrc.tag}. Change only what the action below describes; everything else stays as in the source.`,
+         `ЦЕЛЬ: Отредактировать ${editSrc.tag}. Изменить только то, что описано в действии ниже; всё остальное как в исходнике.`]);
   } else if (mode === "extend" && extendSrc) {
-    add([`GOAL: Extend ${extendSrc.tag} by ${dur} seconds, ${aspect} as in the source. ${ideaEn}`,
-         `ЦЕЛЬ: Продлить ${extendSrc.tag} на ${dur} секунд, формат как у исходника. ${ideaRu}`]);
+    add([`GOAL: Extend ${extendSrc.tag} by ${f.dur} seconds in the same look and format.`, `ЦЕЛЬ: Продлить ${extendSrc.tag} на ${f.dur} секунд в том же виде и формате.`]);
   } else {
-    add([`GOAL: A ${dur}-second ${aspect} video, ${MODES[mode].en}. ${ideaEn}`,
-         `ЦЕЛЬ: Ролик ${dur} секунд, формат ${aspect}, режим «${MODES[mode].label.toLowerCase()}». ${ideaRu}`]);
+    add([`GOAL: A ${f.dur}-second ${f.aspect} ${kindEn} video, ${MODES[mode].en}.`, `ЦЕЛЬ: Ролик ${f.dur} секунд, ${f.aspect}, ${kindRu}, режим «${MODES[mode].label.toLowerCase()}».`]);
   }
+
+  // SUBJECT + ACTION
+  head("SUBJECT:", "ГЕРОЙ:");
+  if (identity.length) add([`The main character is the person from ${identity[0].tag}.`, `Главный герой — человек из ${identity[0].tag}.`]);
+  else if (product) add([`The hero object is the product from ${product.tag}.`, `Главный объект — предмет из ${product.tag}.`]);
+  if (hero && !(identity.length && hero.kind === "human")) {
+    const look = real ? hero.texture : hero.toon;
+    if (real || !look) add([`${cap(hero.en)}${look ? ": " + look[0] : ""}.`, `${cap(hero.ru)}${look ? ": " + look[1] : ""}.`]);
+    else add([`Character design: ${look[0]}.`, `Дизайн персонажа: ${look[1]}.`]);
+  }
+  a.subjects.slice(1).filter((x) => x.kind !== "human" || !identity.length).forEach((x) => add([`Also in the scene: ${x.en}.`, `Также в сцене: ${x.ru}.`]));
+  if (!hero && !identity.length && !product) add(["The main subject as described in the action.", "Главный герой — как описан в действии."]);
+  add([`Action (author's words, in Russian): «${f.idea || "опишите событие"}».`, `Действие: «${f.idea || "опишите событие"}».`]);
 
   // REFERENCES
   if (tagged.length) {
     head("REFERENCES:", "РЕФЕРЕНСЫ:");
-    tagged.forEach((f) => {
-      const p = roleLine(f.type, f.role, f.tag, { duration: dur });
-      add([`- ${p[0]}`, `- ${p[1]}`]);
-    });
-    if (identity.length > 1) add([`- ${identity.map((f) => f.tag).join(" and ")} show the same one person.`, `- ${identity.map((f) => f.tag).join(" и ")} — один и тот же человек.`]);
+    tagged.forEach((x) => { const p = roleLine(x.type, x.role, x.tag, { duration: f.dur }); add([`- ${p[0]}`, `- ${p[1]}`]); });
+    if (identity.length > 1) add([`- ${identity.map((x) => x.tag).join(" and ")} show the same one person.`, `- ${identity.map((x) => x.tag).join(" и ")} — один и тот же человек.`]);
   }
 
-  // SCENE AND LIGHT
-  if (mode !== "edit") {
-    head("SCENE AND LIGHT:", "СЦЕНА И СВЕТ:");
-    if (byRole("light").length) add([`Lighting follows ${byRole("light")[0].tag}, adapted to this space.`, `Свет по ${byRole("light")[0].tag}, перенесённый на это пространство.`]);
-    else add(LIGHT[light]);
-    add(TAKE[take]);
-    add(CAMERA[camera]);
-  }
-
-  // STAGES
   if (mode === "edit") {
     head("EDIT SCOPE:", "ОБЪЁМ ПРАВКИ:");
-    add(["Keep timing, cuts, camera movement, people, faces, expressions, lips, hands, clothing and the original audio unchanged unless the idea says otherwise. New elements match the source perspective, exposure, color temperature and depth of field; stable edges on hair and clothing, no halos, no flicker.",
-         "Сохранить тайминг, склейки, движение камеры, людей, лица, мимику, губы, руки, одежду и исходный звук, если идея не говорит иного. Новые элементы согласованы с перспективой, экспозицией, цветовой температурой и глубиной резкости исходника; края волос и одежды стабильны, без ореолов и мерцания."]);
+    add(["Keep timing, cuts, camera movement, people, faces, expressions, lips, hands, clothing and the original audio unchanged unless the action says otherwise. New elements match the source perspective, exposure, color temperature and depth of field; stable edges on hair and clothing, no halos, no flicker.",
+         "Сохранить тайминг, склейки, движение камеры, людей, лица, мимику, губы, руки, одежду и исходный звук, если действие не говорит иного. Новые элементы согласованы с перспективой, экспозицией, цветовой температурой и глубиной резкости исходника; края волос и одежды стабильны, без ореолов и мерцания."]);
   } else {
+    // SCENE
+    head("SCENE:", "СЦЕНА:");
+    const parts = [];
+    if (location) parts.push([`the location from ${location.tag}`, `локация из ${location.tag}`]);
+    else if (a.place) parts.push([a.place.en, a.place.ru]);
+    else if (f.infer) parts.push(["an environment that fits the action, with real scale and consistent perspective", "окружение, подходящее под действие, с реальным масштабом и согласованной перспективой"]);
+    if (a.season) parts.push([a.season.en, a.season.ru]);
+    if (a.weather) parts.push([a.weather.en, a.weather.ru]);
+    if (parts.length) add([cap(parts.map((x) => x[0]).join("; ")) + (a.time ? `, ${TIME_PHR[a.time.id][0]}` : "") + ".", cap(parts.map((x) => x[1]).join("; ")) + (a.time ? `, ${TIME_PHR[a.time.id][1]}` : "") + "."]);
+    const inter = interactions(a);
+    if (inter.length) add([`Physical details: ${inter.map((x) => x[0]).join("; ")}.`, `Физические детали: ${inter.map((x) => x[1]).join("; ")}.`]);
+
+    // LIGHT
+    head("LIGHT:", "СВЕТ:");
+    if (byRole("light").length) add([`Lighting follows ${byRole("light")[0].tag}, adapted to this space.`, `Свет по ${byRole("light")[0].tag}, перенесённый на это пространство.`]);
+    else if (f.light !== "auto") add(LIGHT[f.light]);
+    else if (a.time || a.place || a.season) add(autoLight({ ...a, time: a.time || { id: "day" } }));
+    else add(LIGHT.auto);
+
+    // CAMERA
+    head("CAMERA:", "КАМЕРА:");
+    if (real) {
+      const rig = RIGS[a.rigId];
+      add([cap(rig.en) + ".", cap(rig.ru) + "."]);
+      add(lensPlan(a, a.rigId, f.bg));
+    } else {
+      add([cap(toon.camera) + ".", cap(toon.cameraRu) + "."]);
+    }
+    add(f.camera !== "auto" ? CAMERA[f.camera] : autoCamera(a));
+    add(TAKE[f.take]);
+
+    // STYLE
+    head("STYLE:", "СТИЛЬ:");
+    if (real) {
+      add(["Photorealistic live-action footage: real-world physics, scale and materials, natural color grade without oversaturation, natural motion blur at a 180-degree shutter.",
+           "Фотореалистичная живая съёмка: реальная физика, масштаб и материалы, естественная цветокоррекция без перенасыщения, естественное размытие движения при затворе 180°."]);
+    } else {
+      add(toon.style);
+      add(toon.motion);
+    }
+
+    // DETAIL
+    const det = [];
+    if (real && human) det.push(light2(f.light, a, isBlur(a, a.rigId, f.bg)));
+    if (f.macro) { const md = microDetail(a, f.take === "cuts"); if (md) det.push(md); }
+    if (det.length) { head("DETAIL:", "ДЕТАЛИ:"); det.forEach((d) => add(d)); }
+
+    // TIMELINE
     head("TIMELINE:", "ХРОНОМЕТРАЖ:");
-    stages(dur, mode, ending).forEach((s) => add(s));
+    stages(f.dur, mode, f.ending, a, f.macro && f.take === "cuts").forEach((st) => add(st));
   }
 
   // AUDIO
   head("AUDIO:", "ЗВУК:");
-  if (!sound) {
-    add(["Silent video, no generated audio.", "Немой ролик, без сгенерированного звука."]);
-  } else {
-    add(["Diegetic ambience and action sounds tied to the on-screen events.", "Фоновая атмосфера и звуки действий, привязанные к событиям в кадре."]);
+  if (!f.sound) add(["Silent video, no generated audio.", "Немой ролик, без сгенерированного звука."]);
+  else {
+    const amb = [];
+    if (a.place && a.place.sound) amb.push(a.place.sound);
+    if (a.weather && ["rain", "storm", "blizzard"].includes(a.weather.id)) amb.push({ rain: ["steady rain patter", "ровный шум дождя"], storm: ["rolling thunder", "раскаты грома"], blizzard: ["roaring wind and hissing snow", "рёв ветра и шорох снега"] }[a.weather.id]);
+    a.subjects.forEach((x) => x.sound && amb.push(x.sound));
+    if (amb.length) add([`Ambience and effects: ${amb.map((x) => x[0]).join(", ")}; each sound tied to its on-screen source.`, `Атмосфера и эффекты: ${amb.map((x) => x[1]).join(", ")}; каждый звук привязан к источнику в кадре.`]);
+    else add(["Diegetic ambience and action sounds tied to the on-screen events.", "Фоновая атмосфера и звуки действий, привязанные к событиям в кадре."]);
     const mus = byRole("music")[0];
     if (mus) add([`Music: ${mus.tag}.`, `Музыка: ${mus.tag}.`]);
-    else if (music === "none") add(["No background music.", "Без фоновой музыки."]);
-    else add(["Subtle background score matching the mood, lower than the action sounds.", "Ненавязчивая фоновая музыка по настроению, тише звуков действия."]);
-    if (speech) {
+    else if (f.music === "none") add(["No background music.", "Без фоновой музыки."]);
+    else add([real ? "Subtle cinematic score matching the mood, lower than the effects." : "Playful animated-film score matching the mood, lower than the effects.", real ? "Ненавязчивая кинематографичная музыка по настроению, тише эффектов." : "Игривая музыка в духе мультфильма по настроению, тише эффектов."]);
+    if (f.speech) {
       const voice = byRole("voice")[0];
-      const startAt = Math.max(1, Math.round(dur * 0.3));
-      add([`Dialogue: one speaker, the main character, says in Russian at about ${startAt}s: «${speech}». Calm natural delivery, lips synced to the words${voice ? `, voice timbre from ${voice.tag}` : ""}.`,
-           `Речь: говорит один герой, главный, примерно с ${startAt}-й секунды, по-русски: «${speech}». Спокойная естественная подача, губы синхронизированы со словами${voice ? `, тембр голоса из ${voice.tag}` : ""}.`]);
+      const startAt = Math.max(1, Math.round(f.dur * 0.3));
+      add([`Dialogue: one speaker, the main character, says in Russian at about ${startAt}s: «${f.speech}». Natural delivery, lips synced to the words${voice ? `, voice timbre from ${voice.tag}` : ""}.`,
+           `Речь: говорит один герой, главный, примерно с ${startAt}-й секунды, по-русски: «${f.speech}». Естественная подача, губы синхронизированы со словами${voice ? `, тембр голоса из ${voice.tag}` : ""}.`]);
     }
   }
 
   // CONTINUITY
   head("CONTINUITY:", "НЕПРЕРЫВНОСТЬ:");
-  if (identity.length) add([`The character from ${identity[0].tag} stays identical in every frame: face, skin texture, moles and freckles, hair, body proportions and clothing.`,
-                            `Герой из ${identity[0].tag} одинаков в каждом кадре: лицо, фактура кожи, родинки и веснушки, волосы, пропорции тела и одежда.`]);
-  add(["Characters, props and who holds them, positions in space, time of day and lighting stay consistent; no morphing of faces, hands or architecture.",
-       "Герои, реквизит и его владельцы, положение в пространстве, время суток и свет остаются согласованными; без морфинга лиц, рук и архитектуры."]);
-  if (realism) {
-    const r = light === "sun" || light === "night" ? REALISM_HARD : REALISM_FULL;
-    add([`Realism: ${r[0]}`, `Реализм: ${r[1]}`]);
+  if (identity.length) add([`The character from ${identity[0].tag} stays identical in every frame: face, ${real ? "skin texture, moles and freckles, " : ""}hair, body proportions and clothing.`,
+                            `Герой из ${identity[0].tag} одинаков в каждом кадре: лицо, ${real ? "фактура кожи, родинки и веснушки, " : ""}волосы, пропорции тела и одежда.`]);
+  else if (hero) {
+    const the = cap(hero.en.replace(/^(an?|a pair of) /, "the "));
+    if (hero.kind === "human") add([`${the} keeps the same face, hair, body proportions and clothing in every frame.`, `${cap(hero.ru)}: одинаковые лицо, волосы, пропорции тела и одежда в каждом кадре.`]);
+    else if (hero.kind === "product") add([`${the} keeps its exact shape, proportions, colors, materials and label in every frame.`, `${cap(hero.ru)}: точная форма, пропорции, цвета, материалы и этикетка в каждом кадре.`]);
+    else add([`${the} keeps the same design, size, colors and markings in every frame.`, `${cap(hero.ru)}: одинаковые облик, размер, цвета и отметины в каждом кадре.`]);
   }
+  add(["Props and who holds them, positions in space, time of day and lighting stay consistent; no morphing of faces, bodies or architecture.",
+       "Реквизит и его владельцы, положение в пространстве, время суток и свет остаются согласованными; без морфинга лиц, тел и архитектуры."]);
 
   // CONSTRAINTS
   head("CONSTRAINTS:", "ОГРАНИЧЕНИЯ:");
-  const c = [["no extra people", "без лишних людей"], ["no flicker", "без мерцания"]];
-  if (noText) c.unshift(["no on-screen text, subtitles or watermarks", "без надписей, субтитров и водяных знаков"]);
-  if (take === "one") c.push(["no cuts", "без склеек"]);
-  const cap = (t) => t[0].toUpperCase() + t.slice(1);
+  const c = [["no extra people or animals", "без лишних людей и животных"], ["no flicker", "без мерцания"]];
+  if (f.noText) c.unshift(["no on-screen text, subtitles or watermarks", "без надписей, субтитров и водяных знаков"]);
+  if (f.take === "one") c.push(["no cuts", "без склеек"]);
+  if (real) c.push(["no CGI look, no plastic textures", "без CGI-вида и пластиковых фактур"]);
+  else c.push(toon.neg);
   add([cap(c.map((x) => x[0]).join(", ")) + ".", cap(c.map((x) => x[1]).join(", ")) + "."]);
 
-  return { en: en.join("\n").trim(), ru: ru.join("\n").trim(), tagged };
+  return { en: en.join("\n").trim(), ru: ru.join("\n").trim(), tagged, a, f };
 }
 
-function stages(dur, mode, ending) {
+function cap(t) { return t ? t[0].toUpperCase() + t.slice(1) : t; }
+
+/* Блок реализма Лизы (раздел 7): при жёстком или ночном свете без «мягкого рассеянного» */
+function light2(lightPreset, a, blur) {
+  const hard = lightPreset === "sun" || lightPreset === "night" || (lightPreset === "auto" && a.time && a.time.id === "night");
+  let r = hard ? REALISM_HARD : REALISM_FULL;
+  if (!blur) r = [r[0].replace("shallow depth of field, ", ""), r[1].replace("малая глубина резкости, ", "")];
+  return [`Realism: ${r[0]}`, `Реализм: ${r[1]}`];
+}
+
+function stages(dur, mode, ending, a, macroShot) {
   const n = dur <= 6 ? 1 : dur <= 10 ? 2 : dur <= 15 ? 3 : 4;
   const cuts = [0];
   for (let i = 1; i < n; i++) cuts.push(Math.round((dur * i) / n));
   cuts.push(dur);
-  const endEn = ending ? `End state: «${ending}»; the final frame holds for a beat.` : "End state: the action is complete and the final composition holds for a beat.";
-  const endRu = ending ? `Финал: «${ending}»; последний кадр держится мгновение.` : "Финал: действие завершено, итоговая композиция держится мгновение.";
-  const startEn = mode === "i2v" || mode === "flf" ? "starts exactly from the first frame" : mode === "extend" ? "continues from the source's last frame" : "establish the location and the subject in the starting pose";
-  const startRu = mode === "i2v" || mode === "flf" ? "начинается точно с первого кадра" : mode === "extend" ? "продолжает последний кадр исходника" : "показать локацию и героя в начальной позе";
+  const who = a.subjects[0] ? [a.subjects[0].en.replace(/^(an?|a pair of) /, "the "), a.subjects[0].ru] : ["the subject", "герой"];
+  const where = a.place ? [a.place.en.split(":")[0], a.place.ru.split(":")[0]] : ["the location", "место действия"];
+  const isProduct = a.subjects[0] && a.subjects[0].kind === "product";
+  const endEn = ending ? `End state: «${ending}»; the final frame holds for a beat.` : isProduct ? `End state: ${who[0]} rests in its best hero angle, fully readable, and the frame holds for a beat.` : `End state: the action is complete, ${who[0]} settles into a clear final pose and the composition holds for a beat.`;
+  const endRu = ending ? `Финал: «${ending}»; последний кадр держится мгновение.` : isProduct ? `Финал: ${who[1]} в лучшем ракурсе, полностью читается, кадр держится мгновение.` : `Финал: действие завершено, ${who[1]} замирает в ясной итоговой позе, композиция держится мгновение.`;
+  const startEn = mode === "i2v" || mode === "flf" ? "the shot starts exactly from the first frame" : mode === "extend" ? "continue seamlessly from the source's last frame" : `establish ${where[0]} and ${who[0]} in the starting position`;
+  const startRu = mode === "i2v" || mode === "flf" ? "кадр начинается точно с первого кадра" : mode === "extend" ? "бесшовно продолжить последний кадр исходника" : `показать: ${where[1]}, ${who[1]} в начальном положении`;
+  const peakEn = macroShot ? "the key moment of the action, with a short macro insert of the detail" : "the key moment of the action, one clear readable event";
+  const peakRu = macroShot ? "ключевой момент действия с короткой макровставкой детали" : "ключевой момент действия, одно ясное читаемое событие";
   const tpl = {
-    1: [[`Initial state: ${startEn}. Primary event: the idea happens as one readable action. ${endEn}`, `Начало: ${startRu}. Главное событие: идея как одно читаемое действие. ${endRu}`]],
-    2: [[`Opening: ${startEn}; the action from the idea begins.`, `Начало: ${startRu}; действие из идеи начинается.`],
-        [`Main event and resolution: the action completes readably. ${endEn}`, `Главное событие и развязка: действие читаемо завершается. ${endRu}`]],
+    1: [[`Initial state: ${startEn}. Primary event: the action happens as one readable move. ${endEn}`, `Начало: ${startRu}. Главное событие: действие одним читаемым движением. ${endRu}`]],
+    2: [[`Opening: ${startEn}; the action begins.`, `Начало: ${startRu}; действие начинается.`],
+        [`Main event and resolution: ${peakEn}. ${endEn}`, `Главное событие и развязка: ${peakRu}. ${endRu}`]],
     3: [[`Opening: ${startEn}.`, `Начало: ${startRu}.`],
-        ["Main event: the action from the idea happens as one clear event.", "Главное событие: действие из идеи как одно ясное событие."],
+        [`Main event: ${peakEn}.`, `Главное событие: ${peakRu}.`],
         [`Resolution: ${endEn}`, `Развязка: ${endRu}`]],
-    4: [[`Hook: ${startEn}.`, `Хук: ${startRu}.`],
-        ["Development: the action from the idea begins and builds.", "Развитие: действие из идеи начинается и нарастает."],
-        ["Peak: the key moment, one clear event.", "Кульминация: ключевой момент, одно ясное событие."],
+    4: [[`Hook: ${startEn}, something immediately catches the eye.`, `Хук: ${startRu}, сразу что-то цепляет взгляд.`],
+        [`Development: ${who[0]} begins the action and it builds.`, `Развитие: ${who[1]} начинает действие, оно нарастает.`],
+        [`Peak: ${peakEn}.`, `Кульминация: ${peakRu}.`],
         [`Resolution: ${endEn}`, `Развязка: ${endRu}`]],
   }[n];
   return tpl.map((p, i) => [`${cuts[i]}–${cuts[i + 1]}s: ${p[0]}`, `${cuts[i]}–${cuts[i + 1]} с: ${p[1]}`]);
@@ -387,6 +478,22 @@ function runChecks(tagged) {
 
 /* ---------- Правая панель ---------- */
 
+function renderFacts(a, f) {
+  const chip = (k, v, guess) => `<span class="fact ${guess ? "guess" : ""}"><span>${k}</span>${esc(v)}</span>`;
+  const none = (k, v) => `<span class="fact none"><span>${k}</span>${v}</span>`;
+  const out = [];
+  out.push(a.place ? chip("Место", a.place.label) : none("Место", "не найдено"));
+  if (a.season) out.push(chip("Сезон", a.season.label, a.seasonInferred));
+  if (a.time) out.push(chip("Время", a.time.label, a.timeInferred));
+  if (a.weather) out.push(chip("Погода", a.weather.label, a.weatherInferred));
+  out.push(a.subjects.length ? chip("Герой", a.subjects.map((x) => x.label).join(", ")) : none("Герой", "не найден"));
+  if (a.genre) out.push(chip("Жанр", a.genre.label));
+  if (f.style === "real") {
+    out.push(chip("Съёмка", RIGS[a.rigId].label, f.rig === "auto"));
+  } else out.push(chip("Анимация", TOON[f.toon].label));
+  $("facts").innerHTML = out.join("");
+}
+
 function highlight(text) {
   return esc(text)
     .replace(/(@(?:image|video|audio|Image|Video|Audio)\d+)/g, '<span class="t">$1</span>')
@@ -397,7 +504,8 @@ function render() {
   normalizeRoles();
   renderFiles();
   const m = model();
-  const { en, ru, tagged } = buildPrompt();
+  const { en, ru, tagged, a, f } = buildPrompt();
+  renderFacts(a, f);
 
   $("outEyebrow").textContent = `${m.name} · ${MODES[state.mode].label} · ${$("duration").value} сек · ${$("aspect").value}`;
   const idea = $("idea").value.trim();
@@ -422,12 +530,58 @@ function render() {
   const showEn = $("outEn").checked, showRu = $("outRu").checked;
   $("enCard").hidden = !showEn;
   $("ruCard").hidden = !showRu;
+  state.ai = null;
+  state.draft = { en, ru };
+  showPrompt(en, ru, false);
+}
+
+function showPrompt(en, ru, fromAi) {
   $("enText").innerHTML = highlight(en);
   $("ruText").innerHTML = highlight(ru);
   $("enText").dataset.raw = en;
   $("ruText").dataset.raw = ru;
-  $("enCount").textContent = `${en.length} симв.`;
-  $("ruCount").textContent = `${ru.length} симв.`;
+  const src = fromAi ? " · ИИ-редактор" : " · черновик по правилам";
+  $("enCount").textContent = `${en.length} симв.${src}`;
+  $("ruCount").textContent = `${ru.length} симв.${src}`;
+}
+
+/* ---------- ИИ-редактор (worker/) ---------- */
+
+function briefForAi() {
+  const { en, tagged, a, f } = buildPrompt();
+  const m = model();
+  return {
+    model: { id: m.id, name: m.name, limits: m.limits, durations: m.durations, aspects: m.aspects, native_audio: m.nativeAudio, notes: m.notes },
+    mode: MODES[state.mode].en,
+    style: f.style === "real" ? { type: "real", rig: RIGS[a.rigId].label, background: f.bg } : { type: "toon", kind: TOON[f.toon].label },
+    idea: f.idea, ending: f.ending, speech: f.speech,
+    settings: { duration_s: f.dur, aspect: f.aspect, light: f.light, camera: f.camera, take: f.take, music: f.music, sound: f.sound, no_text: f.noText, macro: f.macro, infer_details: f.infer },
+    files: tagged.map((x) => ({ tag: x.tag, type: x.type, role: x.role, name: x.name })),
+    understood: { place: a.place && a.place.label, season: a.season && a.season.label, time: a.time && a.time.label, weather: a.weather && a.weather.label, subjects: a.subjects.map((x) => x.label), genre: a.genre && a.genre.label },
+    draft_en: en,
+  };
+}
+
+async function improveWithAi() {
+  const url = $("aiUrl").value.trim();
+  if (!/^https?:\/\//.test(url)) { toast("Укажите адрес ИИ-сервера"); $("aiUrl").focus(); return; }
+  try { localStorage.setItem("aiUrl", url); } catch {}
+  const btn = $("aiBtn");
+  btn.disabled = true; btn.textContent = "ИИ пишет промпт…";
+  try {
+    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(briefForAi()) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Сервер ответил ${res.status}`);
+    state.ai = data;
+    showPrompt(data.en, data.ru, true);
+    const extra = (data.assumptions || []).map((t) => `<div class="check info"><b>Додумано</b><span>${esc(t)}</span></div>`).join("");
+    $("checks").insertAdjacentHTML("afterbegin", extra);
+    toast("Промпт обновлён ИИ");
+  } catch (e) {
+    toast(`Не получилось: ${e.message}`);
+  } finally {
+    btn.disabled = false; btn.textContent = "Улучшить с ИИ";
+  }
 }
 
 /* ---------- События ---------- */
@@ -494,8 +648,18 @@ function bind() {
     render();
   });
 
-  $("brief").addEventListener("input", render);
-  $("brief").addEventListener("change", render);
+  document.querySelector(".seg").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-style]");
+    if (!b) return;
+    state.style = b.dataset.style;
+    document.querySelectorAll(".seg-btn").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+    $("realOpts").hidden = state.style !== "real";
+    $("toonOpts").hidden = state.style === "real";
+    render();
+  });
+  const rerender = (e) => { if (e.target.id !== "aiUrl") render(); };
+  $("brief").addEventListener("input", rerender);
+  $("brief").addEventListener("change", rerender);
   $("brief").addEventListener("submit", (e) => {
     e.preventDefault();
     render();
@@ -503,6 +667,8 @@ function bind() {
     toast("Промпт собран");
   });
 
+  $("aiBtn").addEventListener("click", improveWithAi);
+  try { const u = localStorage.getItem("aiUrl"); if (u) $("aiUrl").value = u; } catch {}
   document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => copy($(b.dataset.copy).dataset.raw)));
   $("copyAll").addEventListener("click", () => {
     const parts = [];
@@ -515,17 +681,10 @@ function bind() {
 /* ---------- Пример при открытии ---------- */
 
 function loadDemo() {
-  $("idea").value = "Девушка щёлкает пальцами, и пустая светлая комната превращается в готовый уютный интерьер";
-  $("ending").value = "Девушка стоит в центре готовой гостиной и смотрит в камеру";
-  $("speech").value = "Вот теперь можно жить";
-  $("take").value = "transform";
-  $("light").value = "window";
-  $("camera").value = "pull";
-  state.files = [
-    { id: ++uid, type: "image", name: "face_front.jpg", role: null, roleTouched: false, demo: true },
-    { id: ++uid, type: "image", name: "empty_room.jpg", role: null, roleTouched: false, demo: true },
-    { id: ++uid, type: "audio", name: "music_beat.mp3", role: "music", roleTouched: true, demo: true },
-  ];
+  $("idea").value = "Крокодил пробирается по Сибири и удивлённо смотрит на падающий снег";
+  $("ending").value = "Крокодил замирает и ловит снежинку пастью";
+  $("speech").value = "";
+  state.files = [];
 }
 
 renderModels();

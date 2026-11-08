@@ -226,3 +226,24 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* Переключатель стиля */
+.seg { display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border-radius: var(--r-m); background: var(--surface-2); border: 1px solid var(--line); }
+.seg-btn { cursor: pointer; padding: 9px 10px; border: 0; border-radius: 7px; background: transparent; font-weight: 600; font-size: 14px; color: var(--cream-dim); }
+.seg-btn[aria-checked="true"] { background: var(--wine); color: var(--cream); box-shadow: inset 0 0 0 1px var(--red); }
+
+/* Что понял сервис */
+.facts { display: flex; flex-wrap: wrap; gap: 6px; }
+.fact { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 10px; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; }
+.fact span { color: var(--cream-dim); font-size: 11.5px; }
+.fact.guess { border-style: dashed; }
+.fact.guess::after { content: "додумано"; font: 500 10px/1 var(--font-mono); color: var(--warn); text-transform: uppercase; letter-spacing: .05em; }
+.fact.none { color: var(--cream-dim); }
+
+/* ИИ-редактор */
+.ai-box { margin-top: 6px; border: 1px solid var(--line); border-radius: var(--r-m); padding: 10px 12px; background: var(--surface-2); }
+.ai-box summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
+.ai-box[open] { display: flex; flex-direction: column; gap: 10px; }
+.btn-ai { cursor: pointer; padding: 10px 14px; border-radius: var(--r-m); border: 1px solid var(--red); background: transparent; font-weight: 700; }
+.btn-ai:hover { background: var(--wine); }
+.btn-ai:disabled { opacity: .6; cursor: progress; }

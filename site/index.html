@@ -17,7 +17,7 @@
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">P</span>
       <span class="brand-name">Prompt Atelier</span>
-      <span class="pill">прототип 0.1</span>
+      <span class="pill">прототип 0.2</span>
     </div>
     <p class="topbar-note">Промпты для видео-нейросетей в синтаксисе SYNTX</p>
   </header>
@@ -53,7 +53,51 @@
       </section>
 
       <section class="block">
-        <h2 class="block-title"><span class="step">4</span>Файлы</h2>
+        <h2 class="block-title"><span class="step">4</span>Стиль</h2>
+        <div class="seg" role="radiogroup" aria-label="Стиль">
+          <button type="button" class="seg-btn" role="radio" aria-checked="true" data-style="real">Реализм</button>
+          <button type="button" class="seg-btn" role="radio" aria-checked="false" data-style="toon">Мультфильм</button>
+        </div>
+        <div class="row" id="realOpts">
+          <label class="field"><span class="label">Съёмка</span>
+            <select id="rig">
+              <option value="auto">Подобрать по сцене</option>
+              <option value="cinema">Кино: ARRI Alexa</option>
+              <option value="canon">Canon: репортаж</option>
+              <option value="wildlife">Природа: телевик</option>
+              <option value="film">Плёнка Kodak 35 мм</option>
+              <option value="vintage">Винтаж 16 мм</option>
+              <option value="phone">Смартфон / UGC</option>
+              <option value="product">Предметка: макро</option>
+            </select>
+          </label>
+          <label class="field"><span class="label">Фон</span>
+            <select id="bg">
+              <option value="auto">По сцене</option>
+              <option value="blur">Размыт (боке)</option>
+              <option value="sharp">Резкий</option>
+            </select>
+          </label>
+        </div>
+        <div class="row" id="toonOpts" hidden>
+          <label class="field"><span class="label">Вид анимации</span>
+            <select id="toon">
+              <option value="3d">3D-анимация</option>
+              <option value="2d">2D рисованная</option>
+              <option value="anime">Аниме</option>
+              <option value="clay">Пластилин / стоп-моушен</option>
+              <option value="book">Книжная иллюстрация</option>
+            </select>
+          </label>
+        </div>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="macro" checked><span>Макро-деталь</span></label>
+          <label class="toggle"><input type="checkbox" id="infer" checked><span>Додумывать детали</span></label>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title"><span class="step">5</span>Файлы</h2>
         <label class="dropzone" id="dropzone" for="fileInput">
           <input id="fileInput" type="file" multiple accept="image/*,video/*,audio/*">
           <span class="dz-main">Перетащите фото, видео или аудио</span>
@@ -64,7 +108,7 @@
       </section>
 
       <section class="block">
-        <h2 class="block-title"><span class="step">5</span>Кадр и звук</h2>
+        <h2 class="block-title"><span class="step">6</span>Кадр и звук</h2>
         <div class="row">
           <label class="field"><span class="label">Длительность</span><select id="duration"></select></label>
           <label class="field"><span class="label">Формат</span><select id="aspect"></select></label>
@@ -72,7 +116,7 @@
         <div class="row">
           <label class="field"><span class="label">Свет</span>
             <select id="light">
-              <option value="auto">Решить по сцене</option>
+              <option value="auto">По сцене</option>
               <option value="window">Мягкий свет из окна</option>
               <option value="sun">Жёсткое низкое солнце</option>
               <option value="night">Ночь, видимые лампы</option>
@@ -81,7 +125,7 @@
           </label>
           <label class="field"><span class="label">Камера</span>
             <select id="camera">
-              <option value="auto">Решить по сцене</option>
+              <option value="auto">По сцене</option>
               <option value="static">Статика</option>
               <option value="push">Наезд</option>
               <option value="pull">Отъезд</option>
@@ -109,19 +153,26 @@
         </div>
         <div class="toggles">
           <label class="toggle"><input type="checkbox" id="sound" checked><span>Звук в ролике</span></label>
-          <label class="toggle"><input type="checkbox" id="realism" checked><span>Реалистичный человек</span></label>
           <label class="toggle"><input type="checkbox" id="noText" checked><span>Без надписей</span></label>
         </div>
       </section>
 
       <section class="block block-last">
-        <h2 class="block-title"><span class="step">6</span>Выдача</h2>
+        <h2 class="block-title"><span class="step">7</span>Выдача</h2>
         <div class="toggles">
           <label class="toggle"><input type="checkbox" id="outEn" checked><span>EN-промпт</span></label>
           <label class="toggle"><input type="checkbox" id="outRu" checked><span>RU-перевод</span></label>
           <label class="toggle"><input type="checkbox" id="tagUpper"><span>Теги как @Image1</span></label>
         </div>
         <button type="submit" class="btn-primary" id="buildBtn">Собрать промпт</button>
+        <details class="ai-box" id="aiBox">
+          <summary>ИИ-редактор</summary>
+          <label class="field"><span class="label">Адрес ИИ-сервера</span>
+            <input id="aiUrl" type="text" inputmode="url" placeholder="https://prompt-atelier.ваш-аккаунт.workers.dev">
+          </label>
+          <button type="button" class="btn-ai" id="aiBtn">Улучшить с ИИ</button>
+          <p class="hint">ИИ переводит действие, разворачивает режиссуру и додумывает детали по базе знаний. Нужен свой сервер с ключом: инструкция в worker/README.md.</p>
+        </details>
       </section>
     </form>
 
@@ -134,6 +185,11 @@
         </div>
         <button type="button" class="btn-ghost" id="copyAll">Копировать всё</button>
       </div>
+
+      <article class="card understood">
+        <h3 class="card-title">Что сервис понял из идеи</h3>
+        <div class="facts" id="facts"></div>
+      </article>
 
       <div class="checks" id="checks"></div>
 
@@ -166,13 +222,14 @@
         <pre class="prompt" id="ruText"></pre>
       </article>
 
-      <p class="foot-note">Прототип собирает промпт по правилам базы знаний без ИИ: идея вставляется вашими словами. В рабочей версии её развернёт и переведёт языковая модель. Лимиты моделей собраны 08.11.2026 по вторичным источникам и требуют проверки в SYNTX.</p>
+      <p class="foot-note">Прототип собирает промпт без ИИ: разбирает идею по словарю мест, сезонов, погоды, героев и жанров и достраивает сцену по правилам базы знаний. Само действие остаётся вашими словами; дословный перевод и свободную режиссуру добавит ИИ-редактор. Лимиты моделей собраны 08.11.2026 по вторичным источникам и требуют проверки в SYNTX.</p>
     </section>
   </main>
 
   <div class="toast" id="toast" role="status"></div>
 
   <script src="models.js"></script>
+  <script src="engine.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
