@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "rm -rf site/knowledge && cp -r knowledge site/knowledge",
+  "outputDirectory": "site",
+  "functions": {
+    "api/prompt.js": { "includeFiles": "knowledge/**", "maxDuration": 60 }
+  }
+}
