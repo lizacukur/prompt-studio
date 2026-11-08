@@ -1,0 +1,3 @@
+User-agent: *
+Disallow: /
+# Чтобы сайт индексировался: заменить на "Allow: /" и убрать meta robots в index.html

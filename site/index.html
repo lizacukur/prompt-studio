@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Пока сайт не индексируется. Чтобы включить поиск: удалить эту строку и правило в robots.txt -->
+  <meta name="robots" content="noindex, nofollow">
+  <title>Prompt Atelier</title>
+  <meta name="description" content="Составление промптов для видео-нейросетей: Gemini Omni, Kling 4.0 Omni, Seedance 2.0 и 2.5, Wan 3.0 Omni.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">P</span>
+      <span class="brand-name">Prompt Atelier</span>
+      <span class="pill">прототип 0.1</span>
+    </div>
+    <p class="topbar-note">Промпты для видео-нейросетей в синтаксисе SYNTX</p>
+  </header>
+
+  <main class="workspace">
+    <!-- ЛЕВАЯ ПАНЕЛЬ: запрос -->
+    <form class="panel panel-input" id="brief" autocomplete="off">
+      <section class="block">
+        <h2 class="block-title"><span class="step">1</span>Нейросеть</h2>
+        <div class="model-grid" id="modelGrid" role="radiogroup" aria-label="Нейросеть"></div>
+        <p class="hint" id="modelNotes"></p>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title"><span class="step">2</span>Режим</h2>
+        <div class="chips" id="modeChips" role="radiogroup" aria-label="Режим"></div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title"><span class="step">3</span>Идея</h2>
+        <label class="field">
+          <span class="label">Что должно произойти в ролике</span>
+          <textarea id="idea" rows="4" placeholder="Например: девушка щёлкает пальцами, и пустая комната превращается в готовый интерьер"></textarea>
+        </label>
+        <label class="field">
+          <span class="label">Чем закончится последний кадр <em>необязательно</em></span>
+          <input id="ending" type="text" placeholder="Например: девушка стоит в центре готовой гостиной и улыбается в камеру">
+        </label>
+        <label class="field">
+          <span class="label">Реплика героя <em>необязательно, на языке речи</em></span>
+          <input id="speech" type="text" placeholder="Например: Вот теперь можно жить">
+        </label>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title"><span class="step">4</span>Файлы</h2>
+        <label class="dropzone" id="dropzone" for="fileInput">
+          <input id="fileInput" type="file" multiple accept="image/*,video/*,audio/*">
+          <span class="dz-main">Перетащите фото, видео или аудио</span>
+          <span class="dz-sub" id="limitsLine"></span>
+        </label>
+        <ol class="files" id="fileList"></ol>
+        <p class="hint">Файлы остаются в вашем браузере. Тег зависит от порядка загрузки: перетащите стрелками, если нужно.</p>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title"><span class="step">5</span>Кадр и звук</h2>
+        <div class="row">
+          <label class="field"><span class="label">Длительность</span><select id="duration"></select></label>
+          <label class="field"><span class="label">Формат</span><select id="aspect"></select></label>
+        </div>
+        <div class="row">
+          <label class="field"><span class="label">Свет</span>
+            <select id="light">
+              <option value="auto">Решить по сцене</option>
+              <option value="window">Мягкий свет из окна</option>
+              <option value="sun">Жёсткое низкое солнце</option>
+              <option value="night">Ночь, видимые лампы</option>
+              <option value="studio">Студия, тёмный фон</option>
+            </select>
+          </label>
+          <label class="field"><span class="label">Камера</span>
+            <select id="camera">
+              <option value="auto">Решить по сцене</option>
+              <option value="static">Статика</option>
+              <option value="push">Наезд</option>
+              <option value="pull">Отъезд</option>
+              <option value="orbit">Облёт</option>
+              <option value="crane">Кран вверх</option>
+              <option value="handheld">С рук</option>
+              <option value="fpv">FPV-пролёт</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label class="field"><span class="label">Монтаж</span>
+            <select id="take">
+              <option value="one">Один непрерывный дубль</option>
+              <option value="cuts">Несколько планов со склейками</option>
+              <option value="transform">Намеренная трансформация</option>
+            </select>
+          </label>
+          <label class="field"><span class="label">Музыка</span>
+            <select id="music">
+              <option value="none">Без музыки</option>
+              <option value="score">Сгенерировать по настроению</option>
+            </select>
+          </label>
+        </div>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="sound" checked><span>Звук в ролике</span></label>
+          <label class="toggle"><input type="checkbox" id="realism" checked><span>Реалистичный человек</span></label>
+          <label class="toggle"><input type="checkbox" id="noText" checked><span>Без надписей</span></label>
+        </div>
+      </section>
+
+      <section class="block block-last">
+        <h2 class="block-title"><span class="step">6</span>Выдача</h2>
+        <div class="toggles">
+          <label class="toggle"><input type="checkbox" id="outEn" checked><span>EN-промпт</span></label>
+          <label class="toggle"><input type="checkbox" id="outRu" checked><span>RU-перевод</span></label>
+          <label class="toggle"><input type="checkbox" id="tagUpper"><span>Теги как @Image1</span></label>
+        </div>
+        <button type="submit" class="btn-primary" id="buildBtn">Собрать промпт</button>
+      </section>
+    </form>
+
+    <!-- ПРАВАЯ ПАНЕЛЬ: результат -->
+    <section class="panel panel-output" aria-live="polite">
+      <div class="out-head">
+        <div>
+          <p class="eyebrow" id="outEyebrow"></p>
+          <h1 class="out-title" id="outTitle">Промпт</h1>
+        </div>
+        <button type="button" class="btn-ghost" id="copyAll">Копировать всё</button>
+      </div>
+
+      <div class="checks" id="checks"></div>
+
+      <div class="cards-2">
+        <article class="card">
+          <h3 class="card-title">Настройки в SYNTX</h3>
+          <dl class="kv" id="settingsList"></dl>
+        </article>
+        <article class="card">
+          <h3 class="card-title">Порядок загрузки</h3>
+          <ol class="upload-order" id="uploadOrder"></ol>
+        </article>
+      </div>
+
+      <article class="prompt-card" id="enCard">
+        <header class="prompt-head">
+          <span class="lang">EN</span>
+          <span class="count" id="enCount"></span>
+          <button type="button" class="btn-copy" data-copy="enText">Копировать</button>
+        </header>
+        <pre class="prompt" id="enText"></pre>
+      </article>
+
+      <article class="prompt-card" id="ruCard">
+        <header class="prompt-head">
+          <span class="lang">RU</span>
+          <span class="count" id="ruCount"></span>
+          <button type="button" class="btn-copy" data-copy="ruText">Копировать</button>
+        </header>
+        <pre class="prompt" id="ruText"></pre>
+      </article>
+
+      <p class="foot-note">Прототип собирает промпт по правилам базы знаний без ИИ: идея вставляется вашими словами. В рабочей версии её развернёт и переведёт языковая модель. Лимиты моделей собраны 08.11.2026 по вторичным источникам и требуют проверки в SYNTX.</p>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status"></div>
+
+  <script src="models.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
