@@ -7,7 +7,7 @@ const B_ = "(?<![а-яёa-z])"; // начало слова для кирилли
 
 /* Миры и атмосферы: вместо названия франшизы описываем видимые признаки (раздел 18) */
 const WORLDS = [
-  { id: "medieval", re: /игр\w* престолов|престол|средневек|рыцар|фэнтези|фентези|ведьмак|властелин\w* колец|королевств|викинг|замок/, label: "Мрачное средневековое фэнтези",
+  { id: "medieval", re: /игр\w* престолов|престол|средневек|рыцар|фэнтези|фентези|ведьмак|властелин\w* колец|королевств|викинг|(?<![а-яё])замк|(?<![а-яё])замок/, label: "Мрачное средневековое фэнтези",
     look: ["Gritty medieval dark-fantasy look: weathered stone fortresses, muddy roads, smoke and torchlight, cold desaturated palette with deep shadows and earthy browns, grounded and believable rather than glossy.",
            "Суровое средневековое тёмное фэнтези: обветренные каменные крепости, грязные дороги, дым и свет факелов, холодная приглушённая палитра с глубокими тенями и землистыми коричневыми, приземлённо и правдоподобно, без глянца."],
     wardrobe: ["Period-accurate medieval clothing: rough wool and linen layers, worn leather belts and boots, fur-lined cloaks, visible wear, dirt and mud on hems.",

@@ -241,6 +241,7 @@ function scene(f) {
   const route = f.inputMode === "free" ? routeIdea(f.idea, sceneTest) : routeFields(f.fields);
   const fullText = f.inputMode === "free" ? f.idea : Object.values(f.fields).join(". ");
   const a = analyzeIdea(fullText);
+  a.text = fullText;
   a.route = route;
   a.world = route.flags.world;
   if (!f.infer) {
@@ -345,17 +346,23 @@ function buildPrompt() {
     if (R.camera.length) add([`Author's notes: «${notes(R.camera)}».`, `Пожелания автора: «${notes(R.camera)}».`]);
     if (real) {
       const userLens = /мм|mm|объектив|диафрагм|f\//.test(camNote);
-      cameraLines(a, a.rigId, f.bg).filter((x) => !(userLens && /^(Lens|Aperture)/.test(x[0]))).forEach((x) => add(x));
+      cameraLines(a, a.rigId, f.bg).map((x) => (f.aspect === "4:3" ? x : [x[0].replace(/,? ?4:3 frame/, ""), x[1].replace(/,? ?кадр 4:3/, "")])).filter((x) => !(userLens && /^(Lens|Aperture)/.test(x[0]))).forEach((x) => add(x));
     } else {
       add([`Camera: ${toon.camera}.`, `Камера: ${toon.cameraRu}.`]);
     }
+    const rigObj = real && RIGS[a.rigId];
+    if (rigObj && rigObj.stamp && !f.noText) add(["Small burned-in date and time stamp in a corner, like original recorded footage.", "Маленький вшитый штамп даты и времени в углу, как на настоящей записи."]);
     const userMove = /наезд|отъезд|облёт|облет|статич|с рук|дрон|кран|панорам|след|сопровожд|бежит за|едет|летит за|за ним|за ней|fpv/.test(camNote);
-    if (!userMove) { const mv = f.camera !== "auto" ? CAMERA[f.camera] : autoCamera(a); add([`Movement: ${mv[0]}`, `Движение: ${mv[1]}`]); }
+    a.moveId = chooseMove(notes(R.action) + " " + a.text, a, real ? a.rigId : null, f.camera);
+    if (!userMove) { const mv = moveLine(a.moveId); add([`Movement: ${mv[0]}`, `Движение: ${mv[1]}`]); }
     add([`Editing: ${TAKE[f.take][0]}`, `Монтаж: ${TAKE[f.take][1]}`]);
 
     // STYLE
     head("STYLE:", "СТИЛЬ:");
-    if (real) {
+    if (real && RIGS[a.rigId].smallSensor) {
+      add(["Photorealistic real-life footage exactly as this camera would record it: real-world physics and scale, the camera's limitations kept consistent, no cinematic color grading, no film grain, no shallow depth of field.",
+           "Фотореалистичная живая запись ровно такой, какой её сняла бы эта камера: реальная физика и масштаб, ограничения камеры сохраняются, без киношной цветокоррекции, без плёночного зерна, без малой глубины резкости."]);
+    } else if (real) {
       add(["Photorealistic live-action footage: real-world physics, scale and materials, natural color grade without oversaturation, natural motion blur at a 180-degree shutter.",
            "Фотореалистичная живая съёмка: реальная физика, масштаб и материалы, естественная цветокоррекция без перенасыщения, естественное размытие движения при затворе 180°."]);
     } else {
@@ -363,7 +370,7 @@ function buildPrompt() {
       add(toon.motion);
     }
     if (a.world) add(a.world.look);
-    const ownStyle = R.style.filter((x) => !(a.world && a.world.re.test(x.toLowerCase())));
+    const ownStyle = R.style.filter((x) => !(a.world && a.world.re.test(x.toLowerCase())) && !(f.rig === "auto" && rigFromText(x) && x.length < 60));
     if (ownStyle.length) add([`Author's style notes: «${ownStyle.join(". ")}».`, `Пожелания автора по стилю: «${ownStyle.join(". ")}».`]);
     if (a.route.flags.quality) add(["Crisp fine detail throughout, clean high-resolution image without artifacts.", "Чёткая мелкая детализация во всём кадре, чистое изображение высокого разрешения без артефактов."]);
 
@@ -523,8 +530,12 @@ function renderFacts(a, f) {
     if (routed.length) out.push(chip("Разложено", "действие + " + routed.join(", ")));
   }
   if (f.style === "real") {
-    out.push(chip("Съёмка", RIGS[a.rigId].label, f.rig === "auto"));
-  } else out.push(chip("Анимация", TOON[f.toon].label));
+    out.push(chip("Камера", RIGS[a.rigId].label, f.rig === "auto"));
+    if (a.moveId) out.push(chip("Движение", MOVES[a.moveId].ru, f.camera === "auto"));
+  } else {
+    out.push(chip("Анимация", TOON[f.toon].label));
+    if (a.moveId) out.push(chip("Движение", MOVES[a.moveId].ru, f.camera === "auto"));
+  }
   $("facts").innerHTML = out.join("");
 }
 
@@ -546,6 +557,8 @@ function render() {
   $("outTitle").textContent = idea ? (idea.length > 70 ? idea.slice(0, 68) + "…" : idea) : "Промпт";
 
   const styleWarn = [];
+  if (f.style === "real" && RIGS[a.rigId].fourThree && f.aspect !== "4:3") styleWarn.push(["info", "Формат", `${RIGS[a.rigId].label} исторически снимает в 4:3. ${model().aspects.includes("4:3") ? "Выберите 4:3 в формате для полной достоверности." : "У этой модели нет 4:3: признаки камеры сохранены без 4:3."}`]);
+  if (f.style === "real" && RIGS[a.rigId].stamp && f.noText) styleWarn.push(["info", "Штамп", "Для этой камеры можно добавить штамп даты, как на настоящей записи: снимите «Без надписей»."]);
   if (f.style === "real" && a.route.flags.wantToon && !a.route.flags.wantReal) styleWarn.push(["warn", "Стиль", "В тексте похоже на мультфильм, а выбран «Реализм». Переключите стиль, если нужен мультфильм."]);
   if (f.style === "toon" && a.route.flags.wantReal && !a.route.flags.wantToon) styleWarn.push(["warn", "Стиль", "В тексте указан реализм, а выбран «Мультфильм». Переключите стиль, если нужна живая съёмка."]);
   $("checks").innerHTML = styleWarn.concat(runChecks(tagged)).map(([k, b, t]) => `<div class="check ${k}"><b>${b}</b><span>${esc(t)}</span></div>`).join("");
@@ -689,6 +702,17 @@ function loadDemo() {
   state.files = [];
 }
 
+function fillCameraSelects() {
+  const groups = (obj, labelOf) => {
+    const g = {};
+    Object.entries(obj).forEach(([k, v]) => { (g[v.group || v.g] = g[v.group || v.g] || []).push([k, labelOf(v)]); });
+    return Object.entries(g).map(([name, items]) => `<optgroup label="${name}">${items.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</optgroup>`).join("");
+  };
+  $("rig").innerHTML = `<option value="auto">Подобрать по идее</option>` + groups(RIGS, (v) => v.label);
+  $("camera").innerHTML = `<option value="auto">Подобрать по идее</option>` + groups(MOVES, (v) => v.ru);
+}
+
+fillCameraSelects();
 renderModels();
 renderModes();
 renderSelects();

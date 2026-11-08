@@ -80,6 +80,7 @@ const PLACES = [
     en: "city street: buildings with real facades, sidewalks, parked cars, passersby kept small in the background",
     ru: "городская улица: здания с настоящими фасадами, тротуары, припаркованные машины, прохожие мелко на заднем плане",
     sound: ["city traffic hum, distant horns, footsteps", "гул городского трафика, далёкие гудки, шаги"] },
+  { id: "yard", re: /(?<![а-яё])двор|у подъезда|панельк/, label: "Двор", en: "residential courtyard between apartment blocks: worn asphalt, benches, a playground, parked cars", ru: "двор между жилыми домами: потёртый асфальт, скамейки, детская площадка, припаркованные машины", sound: ["distant voices, a dog barking, cars passing", "далёкие голоса, лай собаки, проезжающие машины"] },
   { id: "park", re: /парк|сквер|(?<![а-яё])сад[уе]?(?![а-яё])/, label: "Парк",
     en: "city park: paths, benches, trees, lawns, people far in the background",
     ru: "городской парк: дорожки, скамейки, деревья, газоны, люди далеко на заднем плане",
@@ -179,6 +180,8 @@ const SUBJECTS = [
   { id: "robot", re: /робот|андроид|киборг/, kind: "creature", label: "робот", en: "a robot", ru: "робот",
     texture: ["brushed metal panels, visible joints and seams, small indicator lights", "панели из шлифованного металла, видимые шарниры и швы, маленькие индикаторы"],
     toon: ["a cute boxy robot with round screen eyes", "милый угловатый робот с круглыми глазами-экранами"], sound: ["servo whirs, soft beeps", "жужжание сервоприводов, тихие сигналы"] },
+  { id: "teens", re: /подрост|тинейдж|школьник|студент/, kind: "human", label: "подростки", en: "a group of teenagers", ru: "компания подростков" },
+  { id: "friends", re: /друз[ьея]|компани[яи] |ребята|толп/, kind: "human", label: "компания", en: "a group of friends", ru: "компания друзей" },
   { id: "girl", re: /девочк|девчушк/, kind: "human", label: "девочка", en: "a young girl", ru: "девочка" },
   { id: "boy", re: /мальчик|мальчишк|пацан/, kind: "human", label: "мальчик", en: "a young boy", ru: "мальчик" },
   { id: "child", re: /реб[её]н|малыш|(?<![а-яё])дет[иейь]/, kind: "human", label: "ребёнок", en: "a child", ru: "ребёнок" },
@@ -330,6 +333,8 @@ const RIGS = {
 };
 
 function autoRig(a, aspect) {
+  const byWords = typeof rigFromText === "function" ? rigFromText(a.text) : null;
+  if (byWords) return byWords;
   const k = a.subjects[0] && a.subjects[0].kind;
   if (a.genre && a.genre.id === "talk") return "phone";
   if (k === "product" || (a.genre && a.genre.id === "ad")) return "product";
@@ -357,6 +362,15 @@ function cameraLines(a, rigId, bg) {
   const focusEn = k === "human" ? "the eyes of the main character" : k === "animal" || k === "creature" ? "the eye and head of the main character" : k === "product" ? "the logo and key edge of the product" : "the main subject";
   const focusRu = k === "human" ? "глаза главного героя" : k === "animal" || k === "creature" ? "глаз и голова героя" : k === "product" ? "логотип и главная грань предмета" : "главный объект";
   const fstop = blur ? stop : "f/8";
+  if (rig.smallSensor) {
+    const fo = rig.focus || ["fixed focus, everything sharp", "фокус фиксированный, всё резко"];
+    return [
+      [`Camera: ${body[0]}.`, `Камера: ${body[1]}.`],
+      [`Lens: ${lens[0]}.`, `Объектив: ${lens[1]}.`],
+      [`Focus: small sensor, deep focus, the background stays sharp; ${fo[0]}.`, `Фокус: маленькая матрица, большая глубина резкости, фон резкий; ${fo[1]}.`],
+      [`Look: ${rig.look[0]}.`, `Изображение: ${rig.look[1]}.`],
+    ];
+  }
   return [
     [`Camera: ${body[0]}.`, `Камера: ${body[1]}.`],
     [`Lens: ${lens[0]}.`, `Объектив: ${lens[1].replace(/(\d+)mm/g, "$1 мм")}.`],
@@ -368,6 +382,8 @@ function cameraLines(a, rigId, bg) {
 }
 
 function isBlur(a, rig, bg) {
+  if (RIGS[rig] && RIGS[rig].smallSensor && !(rig === "phone" && bg === "blur")) return false;
+  if (RIGS[rig] && RIGS[rig].deep && bg !== "blur") return false;
   return bg === "blur" || (bg === "auto" && !(a.genre && a.genre.id === "epic") && rig !== "phone");
 }
 
