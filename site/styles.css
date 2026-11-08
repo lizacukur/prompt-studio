@@ -251,3 +251,9 @@ select { appearance: none; background-image: linear-gradient(45deg, transparent 
 .stack[hidden] { display: none; }
 .stack textarea { min-height: 56px; }
 .row[hidden] { display: none; }
+
+.ai-open { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; border-color: var(--wine); }
+.ai-title { margin: 0; font: 600 15px/1.2 var(--font-body); color: var(--cream); }
+.link-btn { background: none; border: 0; padding: 0; color: var(--cream-dim); text-decoration: underline; cursor: pointer; font-size: 12.5px; align-self: flex-start; }
+.link-btn:hover { color: var(--cream); }
+.ai-box a { color: var(--cream); }

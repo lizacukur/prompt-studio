@@ -17,7 +17,7 @@
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">P</span>
       <span class="brand-name">Prompt Atelier</span>
-      <span class="pill">прототип 0.4</span>
+      <span class="pill">версия 0.5</span>
     </div>
     <p class="topbar-note">Промпты для видео-нейросетей в синтаксисе SYNTX</p>
   </header>
@@ -180,7 +180,16 @@
           <label class="toggle"><input type="checkbox" id="outRu" checked><span>RU-перевод</span></label>
           <label class="toggle"><input type="checkbox" id="tagUpper"><span>Теги как @Image1</span></label>
         </div>
-        <button type="submit" class="btn-primary" id="buildBtn">Собрать промпт</button>
+        <button type="submit" class="btn-primary" id="buildBtn">Собрать черновик по правилам</button>
+        <div class="ai-box ai-open">
+          <h3 class="ai-title">ИИ-редактор Claude</h3>
+          <p class="hint">Переводит, расписывает механику действия и хронометраж по секундам, подбирает камеру и движение по базе знаний.</p>
+          <label class="field"><span class="label">Модель</span><select id="aiModel"></select></label>
+          <button type="button" class="btn-ai" id="aiBtn">Написать промпт с Claude</button>
+          <button type="button" class="link-btn" id="aiDraft">Показать черновик по правилам</button>
+          <p class="hint" id="aiAccount"></p>
+          <p class="hint">Бесплатно через аккаунт <a href="https://puter.com" target="_blank" rel="noopener">Puter</a>: запросы идут из вашей бесплатной месячной квоты. Claude доступен только в <a href="https://www.anthropic.com/supported-countries" target="_blank" rel="noopener">странах, где его поддерживает Anthropic</a>. В остальных странах пользуйтесь черновиком по правилам.</p>
+        </div>
       </section>
     </form>
 
@@ -236,10 +245,12 @@
 
   <div class="toast" id="toast" role="status"></div>
 
+  <script src="https://js.puter.com/v2/"></script>
   <script src="models.js"></script>
   <script src="engine.js"></script>
   <script src="router.js"></script>
   <script src="camera.js"></script>
+  <script src="ai.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
