@@ -93,7 +93,7 @@ const SEASONS = [
   { id: "spring", re: /весн|оттепел|цвет[еу]т|подснежник/, label: "весна",
     en: "spring: fresh young green, melting patches of snow, wet ground",
     ru: "весна: свежая молодая зелень, тающие пятна снега, влажная земля" },
-  { id: "summer", re: /(?<![а-яё])лет(о|ом|а)(?![а-яё])|(?<![а-яё])жар[аы]|зной/, label: "лето",
+  { id: "summer", re: /(?<![а-яё])лет(о|ом|а)(?![а-яё])|(?<![а-яё])жар[аы](?![а-яё])|(?<![а-яё])зно[йя]/, label: "лето",
     en: "summer: full green foliage, warm dry air, saturated colors",
     ru: "лето: густая зелёная листва, тёплый сухой воздух, насыщенные цвета" },
   { id: "autumn", re: /осен|листопад|жёлт\w* лист|желт\w* лист/, label: "осень",
@@ -103,7 +103,7 @@ const SEASONS = [
 
 const TIMES = [
   { id: "dawn", re: /рассвет|(?<![а-яё])утр|восход/, label: "рассвет" },
-  { id: "golden", re: /закат|вечер|золот\w* час/, label: "закат" },
+  { id: "golden", re: /закат|вечер|сумерк|золот\w* час/, label: "закат" },
   { id: "night", re: /ноч|полночь|темнот|в темноте/, label: "ночь" },
   { id: "day", re: /днём|днем|полдень|дневн/, label: "день" },
 ];
@@ -179,7 +179,9 @@ const SUBJECTS = [
   { id: "robot", re: /робот|андроид|киборг/, kind: "creature", label: "робот", en: "a robot", ru: "робот",
     texture: ["brushed metal panels, visible joints and seams, small indicator lights", "панели из шлифованного металла, видимые шарниры и швы, маленькие индикаторы"],
     toon: ["a cute boxy robot with round screen eyes", "милый угловатый робот с круглыми глазами-экранами"], sound: ["servo whirs, soft beeps", "жужжание сервоприводов, тихие сигналы"] },
-  { id: "child", re: /реб[её]н|малыш|девочк|мальчик|(?<![а-яё])дет[иейь]/, kind: "human", label: "ребёнок", en: "a child", ru: "ребёнок" },
+  { id: "girl", re: /девочк|девчушк/, kind: "human", label: "девочка", en: "a young girl", ru: "девочка" },
+  { id: "boy", re: /мальчик|мальчишк|пацан/, kind: "human", label: "мальчик", en: "a young boy", ru: "мальчик" },
+  { id: "child", re: /реб[её]н|малыш|(?<![а-яё])дет[иейь]/, kind: "human", label: "ребёнок", en: "a child", ru: "ребёнок" },
   { id: "elder", re: /бабушк|дедушк|старик|старушк|пожил/, kind: "human", label: "пожилой человек", en: "an elderly person", ru: "пожилой человек" },
   { id: "woman", re: /девушк|женщин|девуш|(?<![а-яё])мам[аыу](?![а-яё])|блогерш|(?<![а-яё])она(?![а-яё])/, kind: "human", label: "девушка", en: "a young woman", ru: "молодая женщина" },
   { id: "man", re: /парен|мужчин|мужик|(?<![а-яё])пап[аыу](?![а-яё])|(?<![а-яё])блогер(?![а-яё])|(?<![а-яё])он(?![а-яё])/, kind: "human", label: "мужчина", en: "a young man", ru: "молодой мужчина" },
@@ -239,7 +241,8 @@ function analyzeIdea(raw) {
     weather = WEATHER.find((w) => w.id === "snowfall"); weatherInferred = true;
   }
 
-  const subjects = SUBJECTS.filter((s) => test(s.re));
+  const pos = (re) => { const m = rawLower.match(re) || text.match(re); return m ? m.index : -1; };
+  const subjects = SUBJECTS.map((s) => ({ s, i: pos(s.re) })).filter((x) => x.i >= 0).sort((x, y) => x.i - y.i).map((x) => x.s);
   // «я»/«он»/«она» не считаем человеком, если в идее уже есть животное или предмет
   const pronounOnly = (s) => ["person", "woman", "man"].includes(s.id) && !/человек|люди|девушк|женщин|парен|мужчин|мужик|себя|меня/.test(text);
   const named = subjects.filter((s) => !pronounOnly(s) || subjects.every((x) => x.kind === "human"));
@@ -296,13 +299,34 @@ function interactions(a) {
 
 /* ---------- Съёмка для реализма (раздел 18.1) ---------- */
 const RIGS = {
-  cinema:   { label: "Кино: ARRI Alexa", en: "shot on an ARRI Alexa 35 cinema camera with Cooke prime lenses, natural cinematic color", ru: "снято на кинокамеру ARRI Alexa 35 с объективами Cooke, естественный кинематографичный цвет" },
-  canon:    { label: "Canon: репортаж", en: "shot on a Canon EOS R5 C with an RF zoom lens, clean natural documentary color", ru: "снято на Canon EOS R5 C с зум-объективом RF, чистый естественный документальный цвет" },
-  wildlife: { label: "Природа: телевик", en: "wildlife documentary style: shot on a Sony FX6 with a 100–400mm telephoto lens from a distance, compressed perspective", ru: "стиль документального фильма о природе: Sony FX6 с телеобъективом 100–400 мм издалека, сжатая перспектива" },
-  film:     { label: "Плёнка Kodak 35 мм", en: "shot on 35mm Kodak Vision3 film stock, fine organic grain, gentle highlight roll-off, rich but natural color", ru: "снято на 35-мм плёнку Kodak Vision3: мелкое органичное зерно, мягкий уход светов, богатый, но естественный цвет" },
-  vintage:  { label: "Винтаж 16 мм", en: "shot on 16mm film: visible grain, slightly softer detail, warm faded color, subtle gate weave", ru: "снято на 16-мм плёнку: заметное зерно, чуть мягче детализация, тёплый выцветший цвет, лёгкое дрожание кадра" },
-  phone:    { label: "Смартфон / UGC", en: "shot vertically on a modern smartphone, handheld, natural auto exposure, authentic social-media look", ru: "снято вертикально на современный смартфон с рук, естественная автоэкспозиция, живой вид соцсетей" },
-  product:  { label: "Предметка: макро", en: "commercial product cinematography: RED V-Raptor with a 100mm macro lens on a motion-control rig, pristine detail", ru: "рекламная предметная съёмка: RED V-Raptor с макрообъективом 100 мм на моушен-контроле, безупречная детализация" },
+  cinema:   { label: "Кино: ARRI Alexa 35",
+    body: ["ARRI Alexa 35 digital cinema camera", "цифровая кинокамера ARRI Alexa 35"],
+    lens: (f) => [`Cooke S4/i ${f} prime`, `фикс-объектив Cooke S4/i ${f}`],
+    look: ["natural cinematic color, gentle highlight roll-off", "естественный кинематографичный цвет, мягкий уход светов"] },
+  canon:    { label: "Canon EOS R5 C",
+    body: ["Canon EOS R5 C", "Canon EOS R5 C"],
+    lens: (f) => [`Canon RF 24–70mm f/2.8 zoom set to ${f}`, `зум Canon RF 24–70 мм f/2.8 на ${f}`],
+    look: ["clean natural documentary color", "чистый естественный документальный цвет"] },
+  wildlife: { label: "Природа: Sony FX6 + телевик",
+    body: ["Sony FX6, wildlife documentary setup on a tripod from a distance", "Sony FX6, съёмка дикой природы со штатива издалека"],
+    lens: () => ["Sony FE 100–400mm G Master telephoto at 300mm, compressed perspective", "телеобъектив Sony FE 100–400 мм G Master на 300 мм, сжатая перспектива"],
+    look: ["natural documentary color", "естественный документальный цвет"] },
+  film:     { label: "Плёнка Kodak 35 мм",
+    body: (night) => [`ARRICAM LT 35mm film camera loaded with Kodak Vision3 ${night ? "500T" : "250D"}`, `плёночная камера ARRICAM LT 35 мм, плёнка Kodak Vision3 ${night ? "500T" : "250D"}`],
+    lens: (f) => [`Zeiss Ultra Prime ${f}`, `фикс-объектив Zeiss Ultra Prime ${f}`],
+    look: ["fine organic film grain, gentle highlight roll-off, rich but natural color", "мелкое органичное плёночное зерно, мягкий уход светов, богатый, но естественный цвет"] },
+  vintage:  { label: "Винтаж 16 мм",
+    body: ["Arriflex 16SR3 16mm film camera, Kodak Vision3 200T", "плёночная камера Arriflex 16SR3, плёнка 16 мм Kodak Vision3 200T"],
+    lens: (f) => [`Zeiss Super Speed ${f}`, `объектив Zeiss Super Speed ${f}`],
+    look: ["visible grain, slightly softer detail, warm faded color, subtle gate weave", "заметное зерно, чуть мягче детализация, тёплый выцветший цвет, лёгкое дрожание кадра"] },
+  phone:    { label: "Смартфон / UGC",
+    body: ["modern smartphone held vertically, handheld", "современный смартфон вертикально, с рук"],
+    lens: () => ["main 26mm-equivalent camera", "основная камера, эквивалент 26 мм"],
+    look: ["natural auto exposure, authentic social-media look", "естественная автоэкспозиция, живой вид соцсетей"] },
+  product:  { label: "Предметка: RED + макро",
+    body: ["RED V-Raptor on a motion-control rig", "RED V-Raptor на моушен-контроле"],
+    lens: () => ["Canon EF 100mm f/2.8L macro", "макрообъектив Canon EF 100 мм f/2.8L"],
+    look: ["pristine commercial detail, controlled reflections", "безупречная рекламная детализация, контролируемые отражения"] },
 };
 
 function autoRig(a, aspect) {
@@ -315,25 +339,32 @@ function autoRig(a, aspect) {
   return "cinema";
 }
 
-/* Объектив, диафрагма, фокус и фон */
-function lensPlan(a, rig, bg) {
+/* Блок камеры по строкам: корпус, объектив, диафрагма и фокус, фон (раздел 18.1) */
+function cameraLines(a, rigId, bg) {
   const k = a.subjects[0] && a.subjects[0].kind;
-  let focal, stop, enL, ruL;
-  if (rig === "wildlife") { focal = "300mm"; stop = "f/4"; }
-  else if (rig === "product") { focal = "100mm macro"; stop = "f/5.6"; }
-  else if (rig === "phone") { focal = "26mm phone-equivalent"; stop = "f/1.8"; }
-  else if (k === "human" && !(a.genre && a.genre.id === "action")) { focal = "50mm"; stop = "f/2"; }
+  const rig = RIGS[rigId];
+  let focal, stop;
+  if (rigId === "wildlife") { focal = "300mm"; stop = "f/4"; }
+  else if (rigId === "product") { focal = "100mm"; stop = "f/5.6"; }
+  else if (rigId === "phone") { focal = "26mm"; stop = "f/1.8"; }
   else if (a.genre && (a.genre.id === "action" || a.genre.id === "epic")) { focal = "24mm"; stop = "f/4"; }
+  else if (k === "human") { focal = "50mm"; stop = "f/2"; }
   else { focal = "35mm"; stop = "f/2.8"; }
-  const blur = isBlur(a, rig, bg);
-  if (blur) {
-    enL = `${focal} lens at ${stop}: focus locked on the subject's ${k === "human" ? "eyes" : k === "animal" || k === "creature" ? "eye and head" : "key detail"}, background softly out of focus with natural round bokeh, foreground elements slightly blurred for depth.`;
-    ruL = `объектив ${focal.replace("mm", " мм").replace("macro", "макро").replace("phone-equivalent", "в эквиваленте смартфона")}, ${stop}: фокус на ${k === "human" ? "глазах героя" : k === "animal" || k === "creature" ? "глазе и голове героя" : "ключевой детали"}, фон мягко размыт с естественным круглым боке, передний план слегка размыт для глубины.`;
-  } else {
-    enL = `${focal} lens at f/8: deep focus, the subject and the environment both sharp, clear sense of scale.`;
-    ruL = `объектив ${focal.replace("mm", " мм").replace("macro", "макро").replace("phone-equivalent", "в эквиваленте смартфона")}, f/8: большая глубина резкости, герой и окружение резкие, ясно читается масштаб.`;
-  }
-  return [enL, ruL];
+  const night = a.time && a.time.id === "night";
+  const body = typeof rig.body === "function" ? rig.body(night) : rig.body;
+  const lens = rig.lens(focal);
+  const blur = isBlur(a, rigId, bg);
+  const focusEn = k === "human" ? "the eyes of the main character" : k === "animal" || k === "creature" ? "the eye and head of the main character" : k === "product" ? "the logo and key edge of the product" : "the main subject";
+  const focusRu = k === "human" ? "глаза главного героя" : k === "animal" || k === "creature" ? "глаз и голова героя" : k === "product" ? "логотип и главная грань предмета" : "главный объект";
+  const fstop = blur ? stop : "f/8";
+  return [
+    [`Camera: ${body[0]}.`, `Камера: ${body[1]}.`],
+    [`Lens: ${lens[0]}.`, `Объектив: ${lens[1].replace(/(\d+)mm/g, "$1 мм")}.`],
+    [`Aperture and focus: ${fstop}, focus on ${focusEn}.`, `Диафрагма и фокус: ${fstop}, фокус на: ${focusRu}.`],
+    blur ? ["Background: softly out of focus with natural round bokeh; slight foreground blur for depth.", "Фон: мягко размыт, естественное круглое боке; лёгкое размытие переднего плана для глубины."]
+         : ["Background: sharp, deep focus, the environment fully readable for scale.", "Фон: резкий, большая глубина резкости, окружение полностью читается для масштаба."],
+    [`Look: ${rig.look[0]}.`, `Изображение: ${rig.look[1]}.`],
+  ];
 }
 
 function isBlur(a, rig, bg) {

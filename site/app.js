@@ -8,6 +8,7 @@ const state = {
   model: "seedance-2-5",
   mode: "t2v",
   style: "real",
+  inputMode: "free",
   files: [], // { id, type, name, role, roleTouched, url, demo }
 };
 let uid = 0;
@@ -228,12 +229,20 @@ function readForm() {
     sound: $("sound").checked, noText: $("noText").checked,
     style: state.style, rig: $("rig").value, bg: $("bg").value, toon: $("toon").value,
     macro: $("macro").checked, infer: $("infer").checked,
+    inputMode: state.inputMode,
+    fields: Object.fromEntries(["subject", "action", "scene", "light", "camera", "style", "detail", "sound"].map((k) => [k, $("p_" + k).value.trim()])),
   };
 }
 
 /* Итог разбора с учётом переключателя «додумывать» */
+const sceneTest = (low) => [PLACES, SEASONS, WEATHER, TIMES].some((list) => list.some((x) => x.re.test(low)));
+
 function scene(f) {
-  const a = analyzeIdea(f.idea);
+  const route = f.inputMode === "free" ? routeIdea(f.idea, sceneTest) : routeFields(f.fields);
+  const fullText = f.inputMode === "free" ? f.idea : Object.values(f.fields).join(". ");
+  const a = analyzeIdea(fullText);
+  a.route = route;
+  a.world = route.flags.world;
   if (!f.infer) {
     if (a.seasonInferred) a.season = null;
     if (a.weatherInferred) a.weather = null;
@@ -281,14 +290,20 @@ function buildPrompt() {
   head("SUBJECT:", "ГЕРОЙ:");
   if (identity.length) add([`The main character is the person from ${identity[0].tag}.`, `Главный герой — человек из ${identity[0].tag}.`]);
   else if (product) add([`The hero object is the product from ${product.tag}.`, `Главный объект — предмет из ${product.tag}.`]);
-  if (hero && !(identity.length && hero.kind === "human")) {
-    const look = real ? hero.texture : hero.toon;
-    if (real || !look) add([`${cap(hero.en)}${look ? ": " + look[0] : ""}.`, `${cap(hero.ru)}${look ? ": " + look[1] : ""}.`]);
-    else add([`Character design: ${look[0]}.`, `Дизайн персонажа: ${look[1]}.`]);
-  }
-  a.subjects.slice(1).filter((x) => x.kind !== "human" || !identity.length).forEach((x) => add([`Also in the scene: ${x.en}.`, `Также в сцене: ${x.ru}.`]));
+  const describe = (x, lead) => {
+    const look = real ? x.texture : x.toon;
+    if (real || !look) add([`${lead[0]}${x.en}${look ? ": " + look[0] : ""}.`, `${lead[1]}${x.ru}${look ? ": " + look[1] : ""}.`]);
+    else add([`${lead[0]}${look[0]}.`, `${lead[1]}${look[1]}.`]);
+  };
+  if (hero && !(identity.length && hero.kind === "human")) describe(hero, ["Main character: ", "Главный герой: "]);
+  a.subjects.slice(1).filter((x) => x.kind !== "human" || !identity.length).forEach((x) => describe(x, ["Second character: ", "Второй персонаж: "]));
   if (!hero && !identity.length && !product) add(["The main subject as described in the action.", "Главный герой — как описан в действии."]);
-  add([`Action (author's words, in Russian): «${f.idea || "опишите событие"}».`, `Действие: «${f.idea || "опишите событие"}».`]);
+  const R = a.route.buckets;
+  const notes = (arr) => arr.join(". ");
+  if (R.wardrobe.length) add([`Appearance and wardrobe (author's notes, in Russian): «${notes(R.wardrobe)}».`, `Внешность и одежда: «${notes(R.wardrobe)}».`]);
+  if (a.world && human) add(a.world.wardrobe);
+  head("ACTION:", "ДЕЙСТВИЕ:");
+  add([`In the author's words, in Russian: «${notes(R.action) || "опишите событие"}».`, `«${notes(R.action) || "опишите событие"}».`]);
 
   // REFERENCES
   if (tagged.length) {
@@ -307,15 +322,18 @@ function buildPrompt() {
     const parts = [];
     if (location) parts.push([`the location from ${location.tag}`, `локация из ${location.tag}`]);
     else if (a.place) parts.push([a.place.en, a.place.ru]);
+    else if (a.world && a.world.place) parts.push(a.world.place);
     else if (f.infer) parts.push(["an environment that fits the action, with real scale and consistent perspective", "окружение, подходящее под действие, с реальным масштабом и согласованной перспективой"]);
     if (a.season) parts.push([a.season.en, a.season.ru]);
     if (a.weather) parts.push([a.weather.en, a.weather.ru]);
     if (parts.length) add([cap(parts.map((x) => x[0]).join("; ")) + (a.time ? `, ${TIME_PHR[a.time.id][0]}` : "") + ".", cap(parts.map((x) => x[1]).join("; ")) + (a.time ? `, ${TIME_PHR[a.time.id][1]}` : "") + "."]);
+    if (R.scene.length) add([`Author's notes on the place: «${notes(R.scene)}».`, `Уточнения автора о месте: «${notes(R.scene)}».`]);
     const inter = interactions(a);
     if (inter.length) add([`Physical details: ${inter.map((x) => x[0]).join("; ")}.`, `Физические детали: ${inter.map((x) => x[1]).join("; ")}.`]);
 
     // LIGHT
     head("LIGHT:", "СВЕТ:");
+    if (R.light.length) add([`Author's notes: «${notes(R.light)}».`, `Пожелания автора: «${notes(R.light)}».`]);
     if (byRole("light").length) add([`Lighting follows ${byRole("light")[0].tag}, adapted to this space.`, `Свет по ${byRole("light")[0].tag}, перенесённый на это пространство.`]);
     else if (f.light !== "auto") add(LIGHT[f.light]);
     else if (a.time || a.place || a.season) add(autoLight({ ...a, time: a.time || { id: "day" } }));
@@ -323,15 +341,17 @@ function buildPrompt() {
 
     // CAMERA
     head("CAMERA:", "КАМЕРА:");
+    const camNote = notes(R.camera).toLowerCase();
+    if (R.camera.length) add([`Author's notes: «${notes(R.camera)}».`, `Пожелания автора: «${notes(R.camera)}».`]);
     if (real) {
-      const rig = RIGS[a.rigId];
-      add([cap(rig.en) + ".", cap(rig.ru) + "."]);
-      add(lensPlan(a, a.rigId, f.bg));
+      const userLens = /мм|mm|объектив|диафрагм|f\//.test(camNote);
+      cameraLines(a, a.rigId, f.bg).filter((x) => !(userLens && /^(Lens|Aperture)/.test(x[0]))).forEach((x) => add(x));
     } else {
-      add([cap(toon.camera) + ".", cap(toon.cameraRu) + "."]);
+      add([`Camera: ${toon.camera}.`, `Камера: ${toon.cameraRu}.`]);
     }
-    add(f.camera !== "auto" ? CAMERA[f.camera] : autoCamera(a));
-    add(TAKE[f.take]);
+    const userMove = /наезд|отъезд|облёт|облет|статич|с рук|дрон|кран|панорам|след|сопровожд|бежит за|едет|летит за|за ним|за ней|fpv/.test(camNote);
+    if (!userMove) { const mv = f.camera !== "auto" ? CAMERA[f.camera] : autoCamera(a); add([`Movement: ${mv[0]}`, `Движение: ${mv[1]}`]); }
+    add([`Editing: ${TAKE[f.take][0]}`, `Монтаж: ${TAKE[f.take][1]}`]);
 
     // STYLE
     head("STYLE:", "СТИЛЬ:");
@@ -342,16 +362,21 @@ function buildPrompt() {
       add(toon.style);
       add(toon.motion);
     }
+    if (a.world) add(a.world.look);
+    const ownStyle = R.style.filter((x) => !(a.world && a.world.re.test(x.toLowerCase())));
+    if (ownStyle.length) add([`Author's style notes: «${ownStyle.join(". ")}».`, `Пожелания автора по стилю: «${ownStyle.join(". ")}».`]);
+    if (a.route.flags.quality) add(["Crisp fine detail throughout, clean high-resolution image without artifacts.", "Чёткая мелкая детализация во всём кадре, чистое изображение высокого разрешения без артефактов."]);
 
     // DETAIL
     const det = [];
+    if (R.detail.length) det.push([`Author's notes: «${notes(R.detail)}».`, `Пожелания автора: «${notes(R.detail)}».`]);
     if (real && human) det.push(light2(f.light, a, isBlur(a, a.rigId, f.bg)));
     if (f.macro) { const md = microDetail(a, f.take === "cuts"); if (md) det.push(md); }
     if (det.length) { head("DETAIL:", "ДЕТАЛИ:"); det.forEach((d) => add(d)); }
 
     // TIMELINE
     head("TIMELINE:", "ХРОНОМЕТРАЖ:");
-    stages(f.dur, mode, f.ending, a, f.macro && f.take === "cuts").forEach((st) => add(st));
+    stages(f.dur, mode, f.ending || notes(R.ending), a, f.macro && f.take === "cuts").forEach((st) => add(st));
   }
 
   // AUDIO
@@ -364,6 +389,7 @@ function buildPrompt() {
     a.subjects.forEach((x) => x.sound && amb.push(x.sound));
     if (amb.length) add([`Ambience and effects: ${amb.map((x) => x[0]).join(", ")}; each sound tied to its on-screen source.`, `Атмосфера и эффекты: ${amb.map((x) => x[1]).join(", ")}; каждый звук привязан к источнику в кадре.`]);
     else add(["Diegetic ambience and action sounds tied to the on-screen events.", "Фоновая атмосфера и звуки действий, привязанные к событиям в кадре."]);
+    if (a.route.buckets.sound.length) add([`Author's notes: «${a.route.buckets.sound.join(". ")}».`, `Пожелания автора: «${a.route.buckets.sound.join(". ")}».`]);
     const mus = byRole("music")[0];
     if (mus) add([`Music: ${mus.tag}.`, `Музыка: ${mus.tag}.`]);
     else if (f.music === "none") add(["No background music.", "Без фоновой музыки."]);
@@ -468,7 +494,7 @@ function runChecks(tagged) {
   const dup = (r) => tagged.filter((f) => f.role === r).length > 1;
   if (dup("first_frame")) out.push(["warn", "Роли", "Первый кадр назначен двум файлам. Оставьте один."]);
   if (dup("last_frame")) out.push(["warn", "Роли", "Последний кадр назначен двум файлам. Оставьте один."]);
-  if (!$("idea").value.trim()) out.push(["warn", "Идея", "Опишите, что должно произойти: без этого промпт будет с пустым местом."]);
+  if (!(state.inputMode === "free" ? $("idea").value : $("p_action").value).trim()) out.push(["warn", "Идея", "Опишите, что должно произойти: без этого промпт будет с пустым местом."]);
   if ($("speech").value.trim() && !$("sound").checked) out.push(["warn", "Звук", "Есть реплика, но звук выключен. Реплика не попала в промпт."]);
   if (!out.some((x) => x[0] === "warn")) out.push(["ok", "Готово", "Теги, роли и лимиты согласованы с карточкой модели."]);
   m.notes.forEach((n) => out.push(["info", "Модель", n]));
@@ -482,12 +508,20 @@ function renderFacts(a, f) {
   const chip = (k, v, guess) => `<span class="fact ${guess ? "guess" : ""}"><span>${k}</span>${esc(v)}</span>`;
   const none = (k, v) => `<span class="fact none"><span>${k}</span>${v}</span>`;
   const out = [];
-  out.push(a.place ? chip("Место", a.place.label) : none("Место", "не найдено"));
+  out.push(a.place ? chip("Место", a.place.label) : a.world && a.world.place ? chip("Место", "по миру", true) : none("Место", "не найдено"));
   if (a.season) out.push(chip("Сезон", a.season.label, a.seasonInferred));
   if (a.time) out.push(chip("Время", a.time.label, a.timeInferred));
   if (a.weather) out.push(chip("Погода", a.weather.label, a.weatherInferred));
   out.push(a.subjects.length ? chip("Герой", a.subjects.map((x) => x.label).join(", ")) : none("Герой", "не найден"));
   if (a.genre) out.push(chip("Жанр", a.genre.label));
+  if (a.world) out.push(chip("Мир", a.world.label));
+  if (a.route.flags.quality) out.push(chip("Качество", `${a.route.flags.quality} → в настройки`));
+  const R = a.route.buckets;
+  const names = { action: "действие", wardrobe: "герой", scene: "место", light: "свет", camera: "камера", style: "стиль", detail: "детали", sound: "звук", ending: "финал" };
+  if (f.inputMode === "free") {
+    const routed = Object.entries(R).filter(([k, v]) => v.length && k !== "action").map(([k]) => names[k]);
+    if (routed.length) out.push(chip("Разложено", "действие + " + routed.join(", ")));
+  }
   if (f.style === "real") {
     out.push(chip("Съёмка", RIGS[a.rigId].label, f.rig === "auto"));
   } else out.push(chip("Анимация", TOON[f.toon].label));
@@ -508,10 +542,13 @@ function render() {
   renderFacts(a, f);
 
   $("outEyebrow").textContent = `${m.name} · ${MODES[state.mode].label} · ${$("duration").value} сек · ${$("aspect").value}`;
-  const idea = $("idea").value.trim();
+  const idea = (state.inputMode === "free" ? $("idea").value : $("p_action").value || $("p_subject").value).trim();
   $("outTitle").textContent = idea ? (idea.length > 70 ? idea.slice(0, 68) + "…" : idea) : "Промпт";
 
-  $("checks").innerHTML = runChecks(tagged).map(([k, b, t]) => `<div class="check ${k}"><b>${b}</b><span>${esc(t)}</span></div>`).join("");
+  const styleWarn = [];
+  if (f.style === "real" && a.route.flags.wantToon && !a.route.flags.wantReal) styleWarn.push(["warn", "Стиль", "В тексте похоже на мультфильм, а выбран «Реализм». Переключите стиль, если нужен мультфильм."]);
+  if (f.style === "toon" && a.route.flags.wantReal && !a.route.flags.wantToon) styleWarn.push(["warn", "Стиль", "В тексте указан реализм, а выбран «Мультфильм». Переключите стиль, если нужна живая съёмка."]);
+  $("checks").innerHTML = styleWarn.concat(runChecks(tagged)).map(([k, b, t]) => `<div class="check ${k}"><b>${b}</b><span>${esc(t)}</span></div>`).join("");
 
   const settings = [
     ["Модель", m.name],
@@ -520,6 +557,7 @@ function render() {
     ["Формат", state.mode === "extend" ? "как у исходника" : $("aspect").value],
     ["Звук", $("sound").checked ? "включён" : "выключен"],
   ];
+  if (a.route.flags.quality) settings.push(["Разрешение", `${a.route.flags.quality}, если модель поддерживает (слово в промпте качество не меняет)`]);
   $("settingsList").innerHTML = settings.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join("");
 
   $("uploadOrder").innerHTML = tagged.length
@@ -530,58 +568,16 @@ function render() {
   const showEn = $("outEn").checked, showRu = $("outRu").checked;
   $("enCard").hidden = !showEn;
   $("ruCard").hidden = !showRu;
-  state.ai = null;
-  state.draft = { en, ru };
-  showPrompt(en, ru, false);
+  showPrompt(en, ru);
 }
 
-function showPrompt(en, ru, fromAi) {
+function showPrompt(en, ru) {
   $("enText").innerHTML = highlight(en);
   $("ruText").innerHTML = highlight(ru);
   $("enText").dataset.raw = en;
   $("ruText").dataset.raw = ru;
-  const src = fromAi ? " · ИИ-редактор" : " · черновик по правилам";
-  $("enCount").textContent = `${en.length} симв.${src}`;
-  $("ruCount").textContent = `${ru.length} симв.${src}`;
-}
-
-/* ---------- ИИ-редактор (worker/) ---------- */
-
-function briefForAi() {
-  const { en, tagged, a, f } = buildPrompt();
-  const m = model();
-  return {
-    model: { id: m.id, name: m.name, limits: m.limits, durations: m.durations, aspects: m.aspects, native_audio: m.nativeAudio, notes: m.notes },
-    mode: MODES[state.mode].en,
-    style: f.style === "real" ? { type: "real", rig: RIGS[a.rigId].label, background: f.bg } : { type: "toon", kind: TOON[f.toon].label },
-    idea: f.idea, ending: f.ending, speech: f.speech,
-    settings: { duration_s: f.dur, aspect: f.aspect, light: f.light, camera: f.camera, take: f.take, music: f.music, sound: f.sound, no_text: f.noText, macro: f.macro, infer_details: f.infer },
-    files: tagged.map((x) => ({ tag: x.tag, type: x.type, role: x.role, name: x.name })),
-    understood: { place: a.place && a.place.label, season: a.season && a.season.label, time: a.time && a.time.label, weather: a.weather && a.weather.label, subjects: a.subjects.map((x) => x.label), genre: a.genre && a.genre.label },
-    draft_en: en,
-  };
-}
-
-async function improveWithAi() {
-  const url = $("aiUrl").value.trim();
-  if (!/^https?:\/\//.test(url)) { toast("Укажите адрес ИИ-сервера"); $("aiUrl").focus(); return; }
-  try { localStorage.setItem("aiUrl", url); } catch {}
-  const btn = $("aiBtn");
-  btn.disabled = true; btn.textContent = "ИИ пишет промпт…";
-  try {
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(briefForAi()) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `Сервер ответил ${res.status}`);
-    state.ai = data;
-    showPrompt(data.en, data.ru, true);
-    const extra = (data.assumptions || []).map((t) => `<div class="check info"><b>Додумано</b><span>${esc(t)}</span></div>`).join("");
-    $("checks").insertAdjacentHTML("afterbegin", extra);
-    toast("Промпт обновлён ИИ");
-  } catch (e) {
-    toast(`Не получилось: ${e.message}`);
-  } finally {
-    btn.disabled = false; btn.textContent = "Улучшить с ИИ";
-  }
+  $("enCount").textContent = `${en.length} симв.`;
+  $("ruCount").textContent = `${ru.length} симв.`;
 }
 
 /* ---------- События ---------- */
@@ -648,18 +644,26 @@ function bind() {
     render();
   });
 
-  document.querySelector(".seg").addEventListener("click", (e) => {
+  document.querySelector(".seg-style").addEventListener("click", (e) => {
     const b = e.target.closest("[data-style]");
     if (!b) return;
     state.style = b.dataset.style;
-    document.querySelectorAll(".seg-btn").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+    document.querySelectorAll(".seg-style .seg-btn").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
     $("realOpts").hidden = state.style !== "real";
     $("toonOpts").hidden = state.style === "real";
     render();
   });
-  const rerender = (e) => { if (e.target.id !== "aiUrl") render(); };
-  $("brief").addEventListener("input", rerender);
-  $("brief").addEventListener("change", rerender);
+  $("brief").addEventListener("input", render);
+  $("brief").addEventListener("change", render);
+  document.querySelector(".seg-input").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-input]");
+    if (!b) return;
+    state.inputMode = b.dataset.input;
+    document.querySelectorAll(".seg-input .seg-btn").forEach((x) => x.setAttribute("aria-checked", String(x === b)));
+    $("freeBox").hidden = state.inputMode !== "free";
+    $("pointsBox").hidden = state.inputMode === "free";
+    render();
+  });
   $("brief").addEventListener("submit", (e) => {
     e.preventDefault();
     render();
@@ -667,8 +671,6 @@ function bind() {
     toast("Промпт собран");
   });
 
-  $("aiBtn").addEventListener("click", improveWithAi);
-  try { const u = localStorage.getItem("aiUrl"); if (u) $("aiUrl").value = u; } catch {}
   document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => copy($(b.dataset.copy).dataset.raw)));
   $("copyAll").addEventListener("click", () => {
     const parts = [];
@@ -681,8 +683,8 @@ function bind() {
 /* ---------- Пример при открытии ---------- */
 
 function loadDemo() {
-  $("idea").value = "Крокодил пробирается по Сибири и удивлённо смотрит на падающий снег";
-  $("ending").value = "Крокодил замирает и ловит снежинку пастью";
+  $("idea").value = "Девочка бежит от дракона. Всё это происходит в атмосфере игры престолов. Одежда и тд соответствует этому. Гипер реализм, 4к";
+  $("ending").value = "";
   $("speech").value = "";
   state.files = [];
 }

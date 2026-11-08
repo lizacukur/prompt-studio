@@ -17,7 +17,7 @@
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">P</span>
       <span class="brand-name">Prompt Atelier</span>
-      <span class="pill">прототип 0.2</span>
+      <span class="pill">прототип 0.3</span>
     </div>
     <p class="topbar-note">Промпты для видео-нейросетей в синтаксисе SYNTX</p>
   </header>
@@ -38,10 +38,26 @@
 
       <section class="block">
         <h2 class="block-title"><span class="step">3</span>Идея</h2>
-        <label class="field">
-          <span class="label">Что должно произойти в ролике</span>
-          <textarea id="idea" rows="4" placeholder="Например: девушка щёлкает пальцами, и пустая комната превращается в готовый интерьер"></textarea>
-        </label>
+        <div class="seg seg-input" role="radiogroup" aria-label="Как описать идею">
+          <button type="button" class="seg-btn" role="radio" aria-checked="true" data-input="free">Свободно</button>
+          <button type="button" class="seg-btn" role="radio" aria-checked="false" data-input="points">По пунктам</button>
+        </div>
+        <div id="freeBox" class="stack">
+          <label class="field">
+            <span class="label">Пишите всё подряд: сервис сам разложит по блокам</span>
+            <textarea id="idea" rows="5" placeholder="Например: девочка бежит от дракона. Всё в атмосфере средневекового фэнтези, одежда соответствует. Камера низко, фон размыт. Гипер реализм, 4К"></textarea>
+          </label>
+        </div>
+        <div id="pointsBox" class="stack" hidden>
+          <label class="field"><span class="label">Герой <em>(кто, сколько их, возраст, внешность, одежда)</em></span><textarea id="p_subject" rows="2" placeholder="Девочка лет десяти, рыжие волосы, грубое шерстяное платье"></textarea></label>
+          <label class="field"><span class="label">Действие <em>(что происходит по порядку, кто что делает)</em></span><textarea id="p_action" rows="2" placeholder="Бежит по грязной дороге, оглядывается, за ней взлетает дракон"></textarea></label>
+          <label class="field"><span class="label">Место и время <em>(где, эпоха, сезон, погода, время суток)</em></span><textarea id="p_scene" rows="2" placeholder="Средневековая деревня, поздняя осень, туман, сумерки"></textarea></label>
+          <label class="field"><span class="label">Свет <em>(откуда свет, мягкий или жёсткий, настроение)</em></span><textarea id="p_light" rows="2" placeholder="Холодный свет сквозь туман, тёплые отблески пламени дракона"></textarea></label>
+          <label class="field"><span class="label">Камера <em>(план, движение, объектив, фон размыт или резкий)</em></span><textarea id="p_camera" rows="2" placeholder="Низкий ракурс, камера бежит за девочкой, фон размыт"></textarea></label>
+          <label class="field"><span class="label">Стиль <em>(реализм или мульт, атмосфера, цвет, эпоха, качество)</em></span><textarea id="p_style" rows="2" placeholder="Мрачное фэнтези, приглушённые цвета, гипер реализм, 4К"></textarea></label>
+          <label class="field"><span class="label">Детали <em>(фактуры, мелочи, макро-моменты)</em></span><textarea id="p_detail" rows="2" placeholder="Грязь на подоле, искры в воздухе, чешуя дракона крупно"></textarea></label>
+          <label class="field"><span class="label">Звук <em>(атмосфера, эффекты, музыка)</em></span><textarea id="p_sound" rows="2" placeholder="Рёв дракона, тяжёлое дыхание девочки, без музыки"></textarea></label>
+        </div>
         <label class="field">
           <span class="label">Чем закончится последний кадр <em>необязательно</em></span>
           <input id="ending" type="text" placeholder="Например: девушка стоит в центре готовой гостиной и улыбается в камеру">
@@ -54,7 +70,7 @@
 
       <section class="block">
         <h2 class="block-title"><span class="step">4</span>Стиль</h2>
-        <div class="seg" role="radiogroup" aria-label="Стиль">
+        <div class="seg seg-style" role="radiogroup" aria-label="Стиль">
           <button type="button" class="seg-btn" role="radio" aria-checked="true" data-style="real">Реализм</button>
           <button type="button" class="seg-btn" role="radio" aria-checked="false" data-style="toon">Мультфильм</button>
         </div>
@@ -165,14 +181,6 @@
           <label class="toggle"><input type="checkbox" id="tagUpper"><span>Теги как @Image1</span></label>
         </div>
         <button type="submit" class="btn-primary" id="buildBtn">Собрать промпт</button>
-        <details class="ai-box" id="aiBox">
-          <summary>ИИ-редактор</summary>
-          <label class="field"><span class="label">Адрес ИИ-сервера</span>
-            <input id="aiUrl" type="text" inputmode="url" placeholder="https://prompt-atelier.ваш-аккаунт.workers.dev">
-          </label>
-          <button type="button" class="btn-ai" id="aiBtn">Улучшить с ИИ</button>
-          <p class="hint">ИИ переводит действие, разворачивает режиссуру и додумывает детали по базе знаний. Нужен свой сервер с ключом: инструкция в worker/README.md.</p>
-        </details>
       </section>
     </form>
 
@@ -222,7 +230,7 @@
         <pre class="prompt" id="ruText"></pre>
       </article>
 
-      <p class="foot-note">Прототип собирает промпт без ИИ: разбирает идею по словарю мест, сезонов, погоды, героев и жанров и достраивает сцену по правилам базы знаний. Само действие остаётся вашими словами; дословный перевод и свободную режиссуру добавит ИИ-редактор. Лимиты моделей собраны 08.11.2026 по вторичным источникам и требуют проверки в SYNTX.</p>
+      <p class="foot-note">Прототип собирает промпт без ИИ: раскладывает текст по блокам, узнаёт места, сезоны, погоду, героев, жанры и миры по словарю и достраивает сцену по правилам базы знаний. Ваши формулировки попадают в свои блоки на русском. Лимиты моделей собраны 08.11.2026 по вторичным источникам и требуют проверки в SYNTX.</p>
     </section>
   </main>
 
@@ -230,6 +238,7 @@
 
   <script src="models.js"></script>
   <script src="engine.js"></script>
+  <script src="router.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
