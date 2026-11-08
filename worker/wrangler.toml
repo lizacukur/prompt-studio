@@ -10,7 +10,7 @@ fallthrough = true
 
 [vars]
 # Адрес сайта, которому разрешено обращаться к серверу (GitHub Pages)
-ALLOWED_ORIGIN = "https://udakhina1608-sudo.github.io"
+ALLOWED_ORIGIN = "https://lizacukur.github.io"
 
 # Ключ хранится как секрет, не в этом файле:
 #   npx wrangler secret put ANTHROPIC_API_KEY
