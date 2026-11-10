@@ -44,7 +44,8 @@ export async function POST(req) {
     body: JSON.stringify({
       model,
       stream: true,
-      max_tokens: 6000,
+      // В режиме размышления токены рассуждений входят в max_tokens, поэтому запас большой
+      max_tokens: 32000,
       ...(model === MODELS.pro ? { reasoning_effort: "low" } : {}),
       messages: [
         { role: "system", content: systemPrompt({
@@ -84,8 +85,10 @@ export async function POST(req) {
             const data = line.startsWith("data:") ? line.slice(5).trim() : "";
             if (!data || data === "[DONE]") continue;
             try {
-              const piece = JSON.parse(data).choices?.[0]?.delta?.content;
+              const choice = JSON.parse(data).choices?.[0];
+              const piece = choice?.delta?.content;
               if (piece) controller.enqueue(encoder.encode(piece));
+              if (choice?.finish_reason === "length") controller.enqueue(encoder.encode("\n\n[[TRUNCATED]]"));
             } catch { /* неполная строка — пропускаем */ }
           }
         }

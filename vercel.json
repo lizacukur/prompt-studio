@@ -3,6 +3,6 @@
   "buildCommand": "rm -rf site/knowledge && cp -r knowledge site/knowledge",
   "outputDirectory": "site",
   "functions": {
-    "api/prompt.js": { "includeFiles": "knowledge/**", "maxDuration": 60 }
+    "api/prompt.js": { "includeFiles": "knowledge/**", "maxDuration": 300 }
   }
 }

@@ -109,10 +109,11 @@ async function runAi() {
       Object.assign(state.ai, splitAnswer(text));
       showAi();
     }
-    Object.assign(state.ai, splitAnswer(text), { streaming: false });
+    const truncated = text.includes("[[TRUNCATED]]") || !text.includes("=== RU ===") || !text.includes("=== ДОДУМАНО ===");
+    Object.assign(state.ai, splitAnswer(text.replace("[[TRUNCATED]]", "")), { streaming: false, truncated });
     if (!state.ai.en) throw new Error("ответ пришёл не в том формате, попробуйте ещё раз");
     render();
-    toast("Промпт написан");
+    toast(truncated ? "Ответ оборвался: часть промпта может отсутствовать, попробуйте ещё раз" : "Промпт написан");
   } catch (e) {
     state.ai = null;
     render();
@@ -138,6 +139,7 @@ function showAi() {
 function aiChecks() {
   if (!state.ai || state.ai.streaming) return [];
   const out = [];
+  if (state.ai.truncated) out.push(["warn", "ИИ", "Ответ ИИ оборвался: русский перевод или списки могут отсутствовать. Нажмите «Написать промпт с ИИ» ещё раз."]);
   if (state.ai.stale) out.push(["warn", "ИИ", "Вы изменили настройки после ответа ИИ. Нажмите «Написать промпт с ИИ» ещё раз или «Показать черновик»."]);
   else out.push(["ok", "ИИ", `Промпт написан ${state.ai.model} по базе знаний.`]);
   (state.ai.photos || []).forEach((t) => out.push(["ok", "На фото", t]));
