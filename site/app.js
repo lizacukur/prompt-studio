@@ -115,12 +115,10 @@ const model = () => MODELS.find((m) => m.id === state.model);
 const typeOfFile = (f) => (f.type.startsWith("image/") ? "image" : f.type.startsWith("video/") ? "video" : f.type.startsWith("audio/") ? "audio" : null);
 const TYPE_RU = { image: "фото", video: "видео", audio: "аудио" };
 
+/* Теги всегда в синтаксисе SYNTX: @image1, @video1, @audio1 — нумерация отдельно по типу (раздел 12.1 базы) */
 function tagFor(file) {
-  const upper = $("tagUpper").checked;
-  const sameType = state.files.filter((f) => f.type === file.type);
-  const n = sameType.indexOf(file) + 1;
-  const word = upper ? file.type[0].toUpperCase() + file.type.slice(1) : file.type;
-  return `@${word}${n}`;
+  const n = state.files.filter((f) => f.type === file.type).indexOf(file) + 1;
+  return `@${file.type}${n}`;
 }
 
 function allowedRoles(type) {
@@ -625,8 +623,8 @@ function toast(msg) {
 }
 
 async function copy(text) {
-  try { await navigator.clipboard.writeText(text); toast("Скопировано"); }
-  catch { toast("Не удалось скопировать: выделите текст вручную"); }
+  try { await navigator.clipboard.writeText(text); toast("Скопировано"); return true; }
+  catch { toast("Не удалось скопировать: выделите текст вручную"); return false; }
 }
 
 function bind() {
@@ -699,7 +697,9 @@ function bind() {
     toast("Промпт собран");
   });
 
-  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", () => copy($(b.dataset.copy).dataset.raw)));
+  document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {
+    if (await copy($(b.dataset.copy).dataset.raw)) { b.classList.add("done"); setTimeout(() => b.classList.remove("done"), 1400); }
+  }));
   $("copyAll").addEventListener("click", () => {
     const parts = [];
     if ($("outEn").checked) parts.push($("enText").dataset.raw);
