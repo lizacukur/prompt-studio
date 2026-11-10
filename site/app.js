@@ -83,6 +83,8 @@ function roleLine(type, role, t, ctx) {
                  `${t} использовать только как референс стиля: цвет, контраст, фактура; объекты и композицию не копировать.`],
       first_frame: [`${t} is the first frame: the video starts exactly from this image.`, `${t} — первый кадр: ролик начинается точно с этого изображения.`],
       last_frame:  [`${t} is the last frame: the video ends exactly on this image.`, `${t} — последний кадр: ролик заканчивается точно этим изображением.`],
+      scheme:      [`Use ${t} only as a motion diagram: follow the directions of movement, positions, paths and order shown by its arrows and marks; do not reproduce its arrows, lines, numbers, labels or flat schematic look.`,
+                    `${t} использовать только как схему движения: следовать направлениям, положениям, траекториям и порядку, которые показаны стрелками и отметками; стрелки, линии, номера, подписи и схематичный вид не воспроизводить.`],
       storyboard:  [`Use ${t} as a storyboard for shot order and rough composition only; do not reproduce its grid, frames, numbers or captions.`,
                     `${t} — сториборд: взять только порядок планов и примерную композицию; сетку, рамки, номера и подписи не воспроизводить.`],
     },
@@ -91,6 +93,8 @@ function roleLine(type, role, t, ctx) {
       extend_source: [`Extend ${t} by ${ctx.duration} seconds, continuing seamlessly from its last frame.`, `Продлить ${t} на ${ctx.duration} секунд, бесшовно продолжая с последнего кадра.`],
       motion:  [`Use ${t} only for camera movement, blocking and pacing; do not take its people, set, text or music.`,
                 `${t} использовать только для движения камеры, мизансцены и темпа; людей, декорации, надписи и музыку из него не брать.`],
+      previz:  [`Use ${t} only as a previz / 3D blockout: follow its camera path, lens feel, timing, blocking and the movement of characters and objects; replace grey placeholder shapes with the real characters, materials and lighting described here; do not reproduce its untextured look or viewport overlays.`,
+                `${t} использовать только как превиз / 3D-блокинг: следовать траектории камеры, ощущению объектива, таймингу, мизансцене и движению героев и объектов; серые болванки заменить настоящими героями, материалами и светом из описания; нетекстурированный вид и элементы интерфейса не воспроизводить.`],
       choreo:  [`Use ${t} only for the character's body movement and timing; do not take its person, clothing or background.`,
                 `${t} использовать только для движения тела героя и тайминга; человека, одежду и фон из него не брать.`],
       style:   [`Use ${t} only as a style reference for color grade and texture.`, `${t} использовать только как референс стиля: цветокоррекция и фактура.`],
@@ -666,7 +670,7 @@ function bind() {
     $("toonOpts").hidden = state.style === "real";
     render();
   });
-  const changed = (e) => { if (e.target.id === "aiModel") return; if (state.ai && !state.ai.streaming) state.ai.stale = true; render(); };
+  const changed = (e) => { if (e.target.id === "aiModel" || e.target.closest("#fileList")) return; if (state.ai && !state.ai.streaming) state.ai.stale = true; render(); };
   $("brief").addEventListener("input", changed);
   $("brief").addEventListener("change", changed);
   bindAi();

@@ -21,12 +21,14 @@ const ROLES = {
     first_frame: { label: "Первый кадр" },
     last_frame:  { label: "Последний кадр" },
     storyboard:  { label: "Сториборд" },
+    scheme:      { label: "Схема движения" },
   },
   video: {
     edit_source:   { label: "Исходник для правки" },
     extend_source: { label: "Исходник для продления" },
     motion:        { label: "Камера и темп" },
     choreo:        { label: "Движение героя" },
+    previz:        { label: "Превиз / 3D-блокинг" },
     style:         { label: "Стиль / цвет" },
   },
   audio: {

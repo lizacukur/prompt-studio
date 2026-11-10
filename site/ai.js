@@ -60,11 +60,41 @@ function splitAnswer(text) {
   };
 }
 
-/* Фото для ИИ: только изображения с назначенной ролью, уменьшенные до 1024 px по длинной стороне (JPEG) */
+/* Кадры из видео: 8 равномерных кадров с отметкой времени, до 640 px */
+function videoFrames(file, n = 8, maxSide = 640) {
+  return new Promise((resolve) => {
+    const v = document.createElement("video");
+    v.muted = true; v.preload = "auto"; v.src = URL.createObjectURL(file);
+    const frames = [];
+    const done = () => { URL.revokeObjectURL(v.src); resolve(frames); };
+    v.onerror = done;
+    v.onloadedmetadata = async () => {
+      const dur = v.duration;
+      if (!isFinite(dur) || dur <= 0) return done();
+      const k = Math.min(1, maxSide / Math.max(v.videoWidth, v.videoHeight));
+      const c = document.createElement("canvas");
+      c.width = Math.round(v.videoWidth * k); c.height = Math.round(v.videoHeight * k);
+      for (let i = 0; i < n; i++) {
+        const t = Math.min(dur - 0.05, (dur * (i + 0.5)) / n);
+        await new Promise((r) => { v.onseeked = r; v.currentTime = t; setTimeout(r, 4000); });
+        c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+        frames.push({ t: t.toFixed(1), dur: dur.toFixed(1), data: c.toDataURL("image/jpeg", 0.75) });
+      }
+      done();
+    };
+  });
+}
+
+/* Фото для ИИ: изображения уменьшаются до 1024 px; из видео берутся кадры */
 async function photosForAi(tagged) {
   if (!$("sendPhotos").checked) return [];
-  const picked = tagged.filter((x) => x.type === "image" && x.file).slice(0, 6);
   const out = [];
+  for (const x of tagged.filter((y) => y.type === "video" && y.file).slice(0, 2)) {
+    const frames = await videoFrames(x.file);
+    if (!frames.length) { toast(`Браузер не смог прочитать ${x.name}: видео уйдёт только тегом`); continue; }
+    frames.forEach((fr, i) => out.push({ tag: x.tag, role: ROLES.video[x.role].label, name: x.name, frame: `кадр ${i + 1} из ${frames.length}, ${fr.t} с из ${fr.dur} с`, data: fr.data }));
+  }
+  const picked = tagged.filter((x) => x.type === "image" && x.file).slice(0, 6);
   for (const x of picked) {
     try {
       const bmp = await createImageBitmap(x.file);
@@ -72,7 +102,7 @@ async function photosForAi(tagged) {
       const c = document.createElement("canvas");
       c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
       c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
-      out.push({ tag: x.tag, role: ROLES.image[x.role].label, name: x.name, data: c.toDataURL("image/jpeg", 0.82) });
+      out.unshift({ tag: x.tag, role: ROLES.image[x.role].label, name: x.name, data: c.toDataURL("image/jpeg", 0.82) });
     } catch { /* формат не читается браузером — пропускаем */ }
   }
   return out;
@@ -87,10 +117,10 @@ async function runAi() {
   try {
     const { payload } = briefForAi();
     const tagged = usableFiles().map((x) => ({ ...x, tag: tagFor(x) }));
-    if ($("sendPhotos").checked && tagged.some((x) => x.type === "image" && x.file)) btn.textContent = "Готовлю фото…";
+    if ($("sendPhotos").checked && tagged.some((x) => ["image", "video"].includes(x.type) && x.file)) btn.textContent = "Готовлю фото и кадры видео…";
     payload.images = await photosForAi(tagged);
     if (payload.images.length && quality === "pro") { quality = "flash"; toast("С фото работает режим «Быстро»: Pro не видит изображения"); }
-    btn.textContent = payload.images.length ? "ИИ смотрит фото и пишет…" : "ИИ пишет промпт…";
+    btn.textContent = payload.images.length ? "ИИ смотрит файлы и пишет…" : "ИИ пишет промпт…";
     state.ai = { en: "", ru: "", photos: [], assumptions: [], stale: false, model: AI_MODELS[quality].split(" — ")[1], streaming: true };
     showAi();
     const res = await fetch(AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -142,7 +172,7 @@ function aiChecks() {
   if (state.ai.truncated) out.push(["warn", "ИИ", "Ответ ИИ оборвался: русский перевод или списки могут отсутствовать. Нажмите «Написать промпт с ИИ» ещё раз."]);
   if (state.ai.stale) out.push(["warn", "ИИ", "Вы изменили настройки после ответа ИИ. Нажмите «Написать промпт с ИИ» ещё раз или «Показать черновик»."]);
   else out.push(["ok", "ИИ", `Промпт написан ${state.ai.model} по базе знаний.`]);
-  (state.ai.photos || []).forEach((t) => out.push(["ok", "На фото", t]));
+  (state.ai.photos || []).forEach((t) => out.push(["ok", "Увидел", t]));
   state.ai.assumptions.forEach((t) => out.push(["info", "Додумано", t]));
   return out;
 }
