@@ -4,7 +4,6 @@
    Firefox голосовой ввод не поддерживает: там подсказка про микрофон на клавиатуре телефона. */
 
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-const VOICE_LANGS = { "ru-RU": "Русский", "en-US": "English", "he-IL": "עברית", "ar-SY": "العربية", "uk-UA": "Українська" };
 let rec = null;
 let activeBtn = null;
 
@@ -15,7 +14,7 @@ function stopVoice() {
 function startVoice(btn, field) {
   if (rec) { const same = activeBtn === btn; stopVoice(); if (same) return; }
   rec = new SR();
-  rec.lang = $("voiceLang").value;
+  rec.lang = "ru-RU"; // голосовой ввод только на русском
   rec.continuous = true;
   rec.interimResults = true;
   const base = field.value.replace(/\s+$/, "");
@@ -41,7 +40,7 @@ function startVoice(btn, field) {
       "service-not-allowed": "Браузер запретил голосовой ввод на этом сайте",
       "network": "Нет связи со службой распознавания речи браузера. Попробуйте другой браузер или микрофон на клавиатуре телефона",
       "no-speech": "Речь не услышана, попробуйте ещё раз",
-      "language-not-supported": "Этот язык браузер не распознаёт",
+      "language-not-supported": "Браузер не распознаёт русскую речь",
       "audio-capture": "Микрофон не найден",
     }[e.error];
     if (msg) toast(msg);
@@ -61,9 +60,6 @@ function bindVoice() {
     $("voiceRow").innerHTML = '<p class="hint">Голосовой ввод в этом браузере не поддерживается. Работает в Chrome, Edge и Safari; на телефоне можно нажать микрофон на клавиатуре.</p>';
     return;
   }
-  $("voiceLang").innerHTML = Object.entries(VOICE_LANGS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
-  try { const saved = localStorage.getItem("voiceLang"); if (saved && VOICE_LANGS[saved]) $("voiceLang").value = saved; } catch {}
-  $("voiceLang").addEventListener("change", () => { try { localStorage.setItem("voiceLang", $("voiceLang").value); } catch {} stopVoice(); });
   fields.forEach((field) => {
     const btn = document.createElement("button");
     btn.type = "button";
