@@ -17,7 +17,7 @@
     <div class="brand">
       <span class="brand-mark" aria-hidden="true">P</span>
       <span class="brand-name">Prompt Atelier</span>
-      <span class="pill">версия 0.6</span>
+      <span class="pill">версия 0.7</span>
     </div>
     <p class="topbar-note">Промпты для видео-нейросетей в синтаксисе SYNTX</p>
   </header>
@@ -42,6 +42,10 @@
           <button type="button" class="seg-btn" role="radio" aria-checked="true" data-input="free">Свободно</button>
           <button type="button" class="seg-btn" role="radio" aria-checked="false" data-input="points">По пунктам</button>
         </div>
+        <div class="voice-row" id="voiceRow">
+          <label class="field voice-lang"><span class="label">Язык голосового ввода</span><select id="voiceLang"></select></label>
+          <p class="hint">Кнопка «Голосом» под каждым полем. Речь распознаёт браузер, бесплатно.</p>
+        </div>
         <div id="freeBox" class="stack">
           <label class="field">
             <span class="label">Пишите всё подряд: сервис сам разложит по блокам</span>
@@ -53,7 +57,7 @@
           <label class="field"><span class="label">Действие <em>(что происходит по порядку, кто что делает)</em></span><textarea id="p_action" rows="2" placeholder="Бежит по грязной дороге, оглядывается, за ней взлетает дракон"></textarea></label>
           <label class="field"><span class="label">Место и время <em>(где, эпоха, сезон, погода, время суток)</em></span><textarea id="p_scene" rows="2" placeholder="Средневековая деревня, поздняя осень, туман, сумерки"></textarea></label>
           <label class="field"><span class="label">Свет <em>(откуда свет, мягкий или жёсткий, настроение)</em></span><textarea id="p_light" rows="2" placeholder="Холодный свет сквозь туман, тёплые отблески пламени дракона"></textarea></label>
-          <label class="field"><span class="label">Камера <em>(план, движение, объектив, фон размыт или резкий)</em></span><textarea id="p_camera" rows="2" placeholder="Низкий ракурс, камера бежит за девочкой, фон размыт"></textarea></label>
+          <label class="field"><span class="label">Камера <em>(можно по секундам: план, движение, объектив, фон)</em></span><textarea id="p_camera" rows="3" placeholder="0–3 с: низкий ракурс, камера бежит за девочкой&#10;3–6 с: облёт слева, дракон над ней&#10;6–10 с: отъезд вверх, фон размыт"></textarea></label>
           <label class="field"><span class="label">Стиль <em>(реализм или мульт, атмосфера, цвет, эпоха, качество)</em></span><textarea id="p_style" rows="2" placeholder="Мрачное фэнтези, приглушённые цвета, гипер реализм, 4К"></textarea></label>
           <label class="field"><span class="label">Детали <em>(фактуры, мелочи, макро-моменты)</em></span><textarea id="p_detail" rows="2" placeholder="Грязь на подоле, искры в воздухе, чешуя дракона крупно"></textarea></label>
           <label class="field"><span class="label">Звук <em>(атмосфера, эффекты, музыка)</em></span><textarea id="p_sound" rows="2" placeholder="Рёв дракона, тяжёлое дыхание девочки, без музыки"></textarea></label>
@@ -139,27 +143,6 @@
               <option value="sun">Жёсткое низкое солнце</option>
               <option value="night">Ночь, видимые лампы</option>
               <option value="studio">Студия, тёмный фон</option>
-            </select>
-          </label>
-          <label class="field"><span class="label">Движение камеры</span>
-            <select id="camera">
-              <option value="auto">По сцене</option>
-              <option value="static">Статика</option>
-              <option value="push">Наезд</option>
-              <option value="pull">Отъезд</option>
-              <option value="orbit">Облёт</option>
-              <option value="crane">Кран вверх</option>
-              <option value="handheld">С рук</option>
-              <option value="fpv">FPV-пролёт</option>
-            </select>
-          </label>
-        </div>
-        <div class="row">
-          <label class="field"><span class="label">Монтаж</span>
-            <select id="take">
-              <option value="one">Один непрерывный дубль</option>
-              <option value="cuts">Несколько планов со склейками</option>
-              <option value="transform">Намеренная трансформация</option>
             </select>
           </label>
           <label class="field"><span class="label">Музыка</span>
@@ -251,6 +234,7 @@
   <script src="router.js"></script>
   <script src="camera.js"></script>
   <script src="ai.js"></script>
+  <script src="voice.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

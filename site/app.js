@@ -225,11 +225,19 @@ const TIME_PHR = {
   dawn: ["at dawn", "на рассвете"], day: ["during the day", "днём"], golden: ["at sunset, golden hour", "на закате, в золотой час"], night: ["at night", "ночью"],
 };
 
+/* Монтаж по тексту: склейки и трансформация — только если о них сказано, иначе один дубль */
+function autoTake() {
+  const t = (state.inputMode === "free" ? $("idea").value : [$("p_action").value, $("p_camera").value].join(" ")).toLowerCase();
+  if (/склейк|несколько план|смен\w* план|монтаж|нарезк|разные план|план за планом/.test(t)) return "cuts";
+  if (/превращ|трансформ|морф|оборачивается в/.test(t)) return "transform";
+  return "one";
+}
+
 function readForm() {
   return {
     dur: Number($("duration").value), aspect: $("aspect").value,
     idea: $("idea").value.trim(), ending: $("ending").value.trim(), speech: $("speech").value.trim(),
-    light: $("light").value, camera: $("camera").value, take: $("take").value, music: $("music").value,
+    light: $("light").value, camera: "auto", take: autoTake(), music: $("music").value,
     sound: $("sound").checked, noText: $("noText").checked,
     style: state.style, rig: $("rig").value, bg: $("bg").value, toon: $("toon").value,
     macro: $("macro").checked, infer: $("infer").checked,
@@ -356,7 +364,7 @@ function buildPrompt() {
     }
     const rigObj = real && RIGS[a.rigId];
     if (rigObj && rigObj.stamp && !f.noText) add(["Small burned-in date and time stamp in a corner, like original recorded footage.", "Маленький вшитый штамп даты и времени в углу, как на настоящей записи."]);
-    const userMove = /наезд|отъезд|облёт|облет|статич|с рук|дрон|кран|панорам|след|сопровожд|бежит за|едет|летит за|за ним|за ней|fpv/.test(camNote);
+    const userMove = /наезд|отъезд|облёт|облет|статич|с рук|дрон|кран|панорам|след|сопровожд|бежит за|едет|летит за|за ним|за ней|fpv|\d+\s*[–-]\s*\d+\s*с/.test(camNote);
     a.moveId = chooseMove(notes(R.action) + " " + a.text, a, real ? a.rigId : null, f.camera);
     if (!userMove) { const mv = moveLine(a.moveId); add([`Movement: ${mv[0]}`, `Движение: ${mv[1]}`]); }
     add([`Editing: ${TAKE[f.take][0]}`, `Монтаж: ${TAKE[f.take][1]}`]);
@@ -674,6 +682,7 @@ function bind() {
   $("brief").addEventListener("input", changed);
   $("brief").addEventListener("change", changed);
   bindAi();
+  bindVoice();
   document.querySelector(".seg-input").addEventListener("click", (e) => {
     const b = e.target.closest("[data-input]");
     if (!b) return;
@@ -715,7 +724,6 @@ function fillCameraSelects() {
     return Object.entries(g).map(([name, items]) => `<optgroup label="${name}">${items.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</optgroup>`).join("");
   };
   $("rig").innerHTML = `<option value="auto">Подобрать по идее</option>` + groups(RIGS, (v) => v.label);
-  $("camera").innerHTML = `<option value="auto">Подобрать по идее</option>` + groups(MOVES, (v) => v.ru);
 }
 
 fillCameraSelects();

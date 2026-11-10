@@ -32,7 +32,7 @@ function briefForAi() {
         style: f.style === "real" ? { type: "real", camera: f.rig === "auto" ? "подобрать" : RIGS[a.rigId].label, background: f.bg } : { type: "toon", kind: TOON[f.toon].label },
         idea: f.inputMode === "free" ? f.idea : f.fields,
         ending: f.ending, speech: f.speech,
-        settings: { duration_s: f.dur, aspect: f.aspect, light: f.light, camera_move: f.camera === "auto" ? "подобрать" : MOVES[f.camera].ru, take: f.take, music: f.music, sound: f.sound, no_on_screen_text: f.noText, macro_detail: f.macro, infer_details: f.infer },
+        settings: { duration_s: f.dur, aspect: f.aspect, light: f.light, take_by_rules: f.take, music: f.music, sound: f.sound, no_on_screen_text: f.noText, macro_detail: f.macro, infer_details: f.infer },
         files: tagged.map((x) => ({ tag: x.tag, type: x.type, role: ROLES[x.type][x.role].label, name: x.name })),
         understood_by_rules: { place: a.place && a.place.label, season: a.season && a.season.label, time: a.time && a.time.label, weather: a.weather && a.weather.label, subjects: a.subjects.map((x) => x.label), world: a.world && a.world.label, camera: a.rigId && RIGS[a.rigId].label, move: a.moveId && MOVES[a.moveId].ru },
       },
