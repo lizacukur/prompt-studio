@@ -1,6 +1,6 @@
-# Prompt Atelier
+# LIZER PROMPTER
 
-Сайт, который превращает идею в готовый промпт для видео-нейросетей в синтаксисе SYNTX: Gemini Omni, Kling 4.0 Omni, Seedance 2.0, Seedance 2.5, Wan 3.0 Omni.
+Качественные промпты для видео-нейросетей, доступных в SYNTX, Givon, Speshu и других сервисах: Gemini Omni, Kling 4.0 Omni, Seedance 2.0, Seedance 2.5, Wan 3.0 Omni.
 
 Слева человек описывает идею, выбирает модель и режим, прикрепляет фото, видео, аудио. Справа получает настройки, порядок загрузки файлов с тегами (`@image1`, `@video1`, `@audio1`) и промпт на EN и RU.
 
