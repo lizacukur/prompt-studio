@@ -599,7 +599,7 @@ function addFiles(list) {
   [...list].forEach((file) => {
     const type = typeOfFile(file);
     if (!type) return;
-    state.files.push({ id: ++uid, type, name: file.name, role: null, roleTouched: false, url: URL.createObjectURL(file) });
+    state.files.push({ id: ++uid, type, name: file.name, role: null, roleTouched: false, url: URL.createObjectURL(file), file });
   });
   render();
 }

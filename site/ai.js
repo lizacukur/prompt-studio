@@ -7,8 +7,8 @@ const AI_SERVER = (() => { try { return localStorage.getItem("aiServer") || ""; 
 const AI_ENDPOINT = location.hostname.endsWith(".vercel.app") ? "/api/prompt" : (AI_SERVER ? `${AI_SERVER.replace(/\/$/, "")}/api/prompt` : "");
 
 const AI_MODELS = {
-  flash: "Быстро — DeepSeek V4 Flash",
-  pro: "Подробнее — DeepSeek V4 Pro",
+  flash: "Быстро, видит фото — DeepSeek Flash",
+  pro: "Подробнее, без фото — DeepSeek V4 Pro",
 };
 
 const RIG_GROUP = { "Кино": "cinema", "Репортаж": "docu", "Плёнка": "film", "Атмосфера и ностальгия": "retro", "Бытовое и «реальное»": "real" };
@@ -43,18 +43,39 @@ function briefForAi() {
 
 /* Разбор ответа по маркерам; работает и на неполном тексте во время потока */
 function splitAnswer(text) {
-  const grab = (from, to) => {
+  const MARKS = ["=== EN ===", "=== RU ===", "=== НА ФОТО ===", "=== ДОДУМАНО ==="];
+  const grab = (from) => {
     const i = text.indexOf(from);
     if (i < 0) return "";
     const rest = text.slice(i + from.length);
-    const j = to ? rest.indexOf(to) : -1;
-    return (j >= 0 ? rest.slice(0, j) : rest).trim();
+    const ends = MARKS.map((m) => rest.indexOf(m)).filter((j) => j >= 0);
+    return (ends.length ? rest.slice(0, Math.min(...ends)) : rest).trim();
   };
+  const list = (s) => s.split("\n").map((x) => x.replace(/^[-•\d.)\s]+/, "").trim()).filter(Boolean);
   return {
-    en: grab("=== EN ===", "=== RU ==="),
-    ru: grab("=== RU ===", "=== ДОДУМАНО ==="),
-    assumptions: grab("=== ДОДУМАНО ===").split("\n").map((s) => s.replace(/^[-•\d.)\s]+/, "").trim()).filter(Boolean),
+    en: grab("=== EN ==="),
+    ru: grab("=== RU ==="),
+    photos: list(grab("=== НА ФОТО ===")),
+    assumptions: list(grab("=== ДОДУМАНО ===")),
   };
+}
+
+/* Фото для ИИ: только изображения с назначенной ролью, уменьшенные до 1024 px по длинной стороне (JPEG) */
+async function photosForAi(tagged) {
+  if (!$("sendPhotos").checked) return [];
+  const picked = tagged.filter((x) => x.type === "image" && x.file).slice(0, 6);
+  const out = [];
+  for (const x of picked) {
+    try {
+      const bmp = await createImageBitmap(x.file);
+      const k = Math.min(1, 1024 / Math.max(bmp.width, bmp.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+      out.push({ tag: x.tag, role: ROLES.image[x.role].label, name: x.name, data: c.toDataURL("image/jpeg", 0.82) });
+    } catch { /* формат не читается браузером — пропускаем */ }
+  }
+  return out;
 }
 
 async function runAi() {
@@ -62,11 +83,17 @@ async function runAi() {
   if (!AI_ENDPOINT) { toast("ИИ-редактор ещё не подключён: владелец сайта настраивает сервер"); return; }
   btn.disabled = true;
   btn.textContent = "ИИ пишет промпт…";
-  const quality = $("aiModel").value;
-  state.ai = { en: "", ru: "", assumptions: [], stale: false, model: AI_MODELS[quality].split(" — ")[1], streaming: true };
-  showAi();
+  let quality = $("aiModel").value;
   try {
-    const res = await fetch(AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(briefForAi().payload) });
+    const { payload } = briefForAi();
+    const tagged = usableFiles().map((x) => ({ ...x, tag: tagFor(x) }));
+    if ($("sendPhotos").checked && tagged.some((x) => x.type === "image" && x.file)) btn.textContent = "Готовлю фото…";
+    payload.images = await photosForAi(tagged);
+    if (payload.images.length && quality === "pro") { quality = "flash"; toast("С фото работает режим «Быстро»: Pro не видит изображения"); }
+    btn.textContent = payload.images.length ? "ИИ смотрит фото и пишет…" : "ИИ пишет промпт…";
+    state.ai = { en: "", ru: "", photos: [], assumptions: [], stale: false, model: AI_MODELS[quality].split(" — ")[1], streaming: true };
+    showAi();
+    const res = await fetch(AI_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       throw new Error(data.error || `сервер ответил ${res.status}`);
@@ -113,6 +140,7 @@ function aiChecks() {
   const out = [];
   if (state.ai.stale) out.push(["warn", "ИИ", "Вы изменили настройки после ответа ИИ. Нажмите «Написать промпт с ИИ» ещё раз или «Показать черновик»."]);
   else out.push(["ok", "ИИ", `Промпт написан ${state.ai.model} по базе знаний.`]);
+  (state.ai.photos || []).forEach((t) => out.push(["ok", "На фото", t]));
   state.ai.assumptions.forEach((t) => out.push(["info", "Додумано", t]));
   return out;
 }
