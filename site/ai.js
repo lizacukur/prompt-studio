@@ -3,7 +3,7 @@
    сервер добавляет нужные разделы базы знаний и спрашивает DeepSeek. Ключ хранится только на сервере. */
 
 /* Адрес сервера. На копии сайта на vercel.app сервер тот же, поэтому адрес не нужен. */
-const AI_SERVER = (() => { try { return localStorage.getItem("aiServer") || ""; } catch { return ""; } })() || "";
+const AI_SERVER = (() => { try { return localStorage.getItem("aiServer") || ""; } catch { return ""; } })() || "https://prompt-studio-self.vercel.app";
 const AI_ENDPOINT = location.hostname.endsWith(".vercel.app") ? "/api/prompt" : (AI_SERVER ? `${AI_SERVER.replace(/\/$/, "")}/api/prompt` : "");
 
 const AI_MODELS = {
