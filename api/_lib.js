@@ -103,7 +103,7 @@ export function corsHeaders(req) {
 /* Простое ограничение: N запросов в сутки с одного адреса (в памяти экземпляра сервера, без гарантий) */
 const hits = new Map();
 export function allow(ip) {
-  const limit = Number(process.env.DAILY_LIMIT_PER_IP || 30);
+  const limit = Number(process.env.DAILY_LIMIT_PER_IP || 100);
   const day = new Date().toISOString().slice(0, 10);
   const key = `${day}:${ip}`;
   const n = (hits.get(key) || 0) + 1;

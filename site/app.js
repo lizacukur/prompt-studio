@@ -571,6 +571,7 @@ function render() {
   if (f.style === "real" && RIGS[a.rigId].stamp && f.noText) styleWarn.push(["info", "Штамп", "Для этой камеры можно добавить штамп даты, как на настоящей записи: снимите «Без надписей»."]);
   if (f.style === "real" && a.route.flags.wantToon && !a.route.flags.wantReal) styleWarn.push(["warn", "Стиль", "В тексте похоже на мультфильм, а выбран «Реализм». Переключите стиль, если нужен мультфильм."]);
   if (f.style === "toon" && a.route.flags.wantReal && !a.route.flags.wantToon) styleWarn.push(["warn", "Стиль", "В тексте указан реализм, а выбран «Мультфильм». Переключите стиль, если нужна живая съёмка."]);
+  renderModeBanner();
   $("checks").innerHTML = aiChecks().concat(styleWarn, runChecks(tagged)).map(([k, b, t]) => `<div class="check ${k}"><b>${b}</b><span>${esc(t)}</span></div>`).join("");
 
   const settings = [
@@ -694,7 +695,7 @@ function bind() {
     e.preventDefault();
     render();
     if (window.matchMedia("(max-width: 900px)").matches) document.querySelector(".panel-output").scrollIntoView({ behavior: "smooth" });
-    toast("Промпт собран");
+    toast("Черновик без ИИ собран");
   });
 
   document.querySelectorAll("[data-copy]").forEach((b) => b.addEventListener("click", async () => {

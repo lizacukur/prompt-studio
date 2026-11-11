@@ -25,7 +25,7 @@ export async function POST(req) {
   try { body = await req.json(); } catch { return fail(req, 400, "Неверный запрос."); }
   const briefText = JSON.stringify(body.brief || {});
   const draft = String(body.draft || "");
-  if (briefText.length > 12000 || draft.length > 12000) return fail(req, 413, "Слишком длинная идея: сократите описание.");
+  if (briefText.length > 40000 || draft.length > 40000) return fail(req, 413, "Слишком длинная идея (больше ~35 000 знаков): сократите описание или разбейте на несколько роликов.");
   const ctx = body.context || {};
   let total = 0;
   const images = (Array.isArray(body.images) ? body.images : []).slice(0, MAX_IMAGES)

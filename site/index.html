@@ -161,15 +161,14 @@
           <label class="toggle"><input type="checkbox" id="outEn" checked><span>EN-промпт</span></label>
           <label class="toggle"><input type="checkbox" id="outRu" checked><span>RU-перевод</span></label>
         </div>
-        <button type="submit" class="btn-primary" id="buildBtn">Собрать черновик по правилам</button>
         <div class="ai-box ai-open">
           <h3 class="ai-title">ИИ-редактор</h3>
-          <p class="hint">Переводит, расписывает механику действия и хронометраж по секундам, подбирает камеру и движение по базе знаний.</p>
+          <p class="hint">Переводит, расписывает механику действия и хронометраж по секундам, учитывает фото и видео, подбирает камеру и движение по базе знаний.</p>
           <label class="field"><span class="label">Режим</span><select id="aiModel"></select></label>
-          <button type="button" class="btn-ai" id="aiBtn">Написать промпт с ИИ</button>
-          <button type="button" class="link-btn" id="aiDraft">Показать черновик по правилам</button>
+          <button type="button" class="btn-primary" id="aiBtn">Написать промпт с ИИ</button>
           <p class="hint" id="aiStatus"></p>
         </div>
+        <button type="button" class="link-btn" id="aiDraft">Показать черновик без ИИ</button>
       </section>
     </form>
 
@@ -187,6 +186,8 @@
         <h3 class="card-title">Что сервис понял из идеи</h3>
         <div class="facts" id="facts"></div>
       </article>
+
+      <div class="mode-banner" id="modeBanner" hidden></div>
 
       <div class="checks" id="checks"></div>
 

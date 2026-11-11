@@ -87,11 +87,12 @@ function videoFrames(file, n = 8, maxSide = 640) {
 
 /* Фото для ИИ: изображения уменьшаются до 1024 px; из видео берутся кадры */
 async function photosForAi(tagged) {
+  state.aiSkipped = [];
   if (!$("sendPhotos").checked) return [];
   const out = [];
   for (const x of tagged.filter((y) => y.type === "video" && y.file).slice(0, 2)) {
     const frames = await videoFrames(x.file);
-    if (!frames.length) { toast(`Браузер не смог прочитать ${x.name}: видео уйдёт только тегом`); continue; }
+    if (!frames.length) { state.aiSkipped.push(`${x.tag} ${x.name}: браузер не прочитал видео — сохраните в MP4 (H.264) или WebM`); continue; }
     frames.forEach((fr, i) => out.push({ tag: x.tag, role: ROLES.video[x.role].label, name: x.name, frame: `кадр ${i + 1} из ${frames.length}, ${fr.t} с из ${fr.dur} с`, data: fr.data }));
   }
   const picked = tagged.filter((x) => x.type === "image" && x.file).slice(0, 6);
@@ -103,7 +104,10 @@ async function photosForAi(tagged) {
       c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
       c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
       out.unshift({ tag: x.tag, role: ROLES.image[x.role].label, name: x.name, data: c.toDataURL("image/jpeg", 0.82) });
-    } catch { /* формат не читается браузером — пропускаем */ }
+    } catch {
+      const heic = /hei[cf]/i.test(x.file.type + x.name);
+      state.aiSkipped.push(`${x.tag} ${x.name}: браузер не прочитал фото${heic ? " (формат HEIC с iPhone)" : ""} — сохраните его как JPG или PNG и прикрепите снова`);
+    }
   }
   return out;
 }
@@ -113,6 +117,8 @@ async function runAi() {
   if (!AI_ENDPOINT) { toast("ИИ-редактор ещё не подключён: владелец сайта настраивает сервер"); return; }
   btn.disabled = true;
   btn.textContent = "ИИ пишет промпт…";
+  state.aiError = null;
+  if (window.matchMedia("(max-width: 900px)").matches) document.querySelector(".panel-output").scrollIntoView({ behavior: "smooth" });
   let quality = $("aiModel").value;
   try {
     const { payload } = briefForAi();
@@ -146,8 +152,11 @@ async function runAi() {
     toast(truncated ? "Ответ оборвался: часть промпта может отсутствовать, попробуйте ещё раз" : "Промпт написан");
   } catch (e) {
     state.ai = null;
+    state.aiError = e.message === "Failed to fetch" || e.message === "Load failed"
+      ? "Сервер ИИ недоступен из вашей сети. Проверьте интернет; если не помогает — откройте копию сайта prompt-studio-self.vercel.app или сообщите владельцу сайта, из какой вы страны."
+      : e.message;
     render();
-    toast(`Не получилось: ${e.message === "Failed to fetch" ? "сервер недоступен, проверьте интернет" : e.message}`);
+    toast("ИИ не смог написать промпт — причина над результатом");
   } finally {
     btn.disabled = false;
     btn.textContent = "Написать промпт с ИИ";
@@ -167,8 +176,9 @@ function showAi() {
 }
 
 function aiChecks() {
-  if (!state.ai || state.ai.streaming) return [];
-  const out = [];
+  const skipped = (state.aiSkipped || []).map((t) => ["warn", "Файл", t]);
+  if (!state.ai || state.ai.streaming) return skipped;
+  const out = [...skipped];
   if (state.ai.truncated) out.push(["warn", "ИИ", "Ответ ИИ оборвался: русский перевод или списки могут отсутствовать. Нажмите «Написать промпт с ИИ» ещё раз."]);
   if (state.ai.stale) out.push(["warn", "ИИ", "Вы изменили настройки после ответа ИИ. Нажмите «Написать промпт с ИИ» ещё раз или «Показать черновик»."]);
   else out.push(["ok", "ИИ", `Промпт написан ${state.ai.model} по базе знаний.`]);
@@ -180,6 +190,20 @@ function aiChecks() {
 function bindAi() {
   $("aiModel").innerHTML = Object.entries(AI_MODELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("");
   $("aiBtn").addEventListener("click", runAi);
-  $("aiDraft").addEventListener("click", () => { state.ai = null; render(); });
-  $("aiStatus").textContent = AI_ENDPOINT ? "Без регистрации. Ограничение — 30 запросов в день с одного устройства." : "ИИ-редактор скоро заработает: владелец сайта подключает сервер. Пока доступен черновик по правилам.";
+  $("aiDraft").addEventListener("click", () => { state.ai = null; state.aiError = null; render(); });
+  $("aiStatus").textContent = AI_ENDPOINT ? "Без регистрации. Ограничение — 100 запросов в день с одной сети." : "ИИ-редактор скоро заработает: владелец сайта подключает сервер. Пока доступен черновик по правилам.";
+}
+
+/* Полоса над результатом: черновик без ИИ, ошибка ИИ или ИИ пишет */
+function renderModeBanner() {
+  const box = $("modeBanner");
+  if (state.ai && state.ai.streaming) { box.hidden = true; return; }
+  if (state.aiError) {
+    box.hidden = false; box.className = "mode-banner err";
+    box.innerHTML = `<div><b>ИИ не смог написать промпт.</b> ${esc(state.aiError)}<br>Ниже — черновик без ИИ.</div><button type="button" class="btn-ai" data-run-ai>Попробовать ещё раз</button>`;
+  } else if (!state.ai) {
+    box.hidden = false; box.className = "mode-banner";
+    box.innerHTML = `<div><b>Сейчас показан черновик без ИИ.</b> В нём ваши слова разложены по блокам, но не переведены, а фото и видео не просмотрены. Полный промпт пишет ИИ.</div><button type="button" class="btn-primary" data-run-ai>Написать промпт с ИИ</button>`;
+  } else { box.hidden = true; return; }
+  box.querySelector("[data-run-ai]").addEventListener("click", runAi);
 }
