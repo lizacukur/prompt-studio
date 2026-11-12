@@ -25,7 +25,11 @@ export async function POST(req) {
   try { body = await req.json(); } catch { return fail(req, 400, "Неверный запрос."); }
   const briefText = JSON.stringify(body.brief || {});
   const draft = String(body.draft || "");
-  if (briefText.length > 40000 || draft.length > 40000) return fail(req, 413, "Слишком длинная идея (больше ~35 000 знаков): сократите описание или разбейте на несколько роликов.");
+  // Длинные подробные брифы — нормально (DeepSeek принимает до 1 млн токенов). Предел — только от злоупотреблений.
+  if (briefText.length > 200000) return fail(req, 413, "Описание больше 200 000 знаков: разбейте его на несколько роликов.");
+  const longBrief = briefText.length > 8000;
+  // Для длинного брифа черновик по правилам почти дословно повторяет идею — не отправляем, чтобы ИИ отвечал быстрее
+  const draftPart = longBrief ? "" : `\n\nЧерновик по правилам:\n${draft.slice(0, 40000)}`;
   const ctx = body.context || {};
   let total = 0;
   const images = (Array.isArray(body.images) ? body.images : []).slice(0, MAX_IMAGES)
@@ -34,12 +38,12 @@ export async function POST(req) {
   // С фото работает только Flash: у Pro нет распознавания изображений
   const model = images.length ? MODELS.flash : (MODELS[ctx.quality] || MODELS.flash);
   const userContent = images.length
-    ? [{ type: "text", text: `Бриф (JSON):\n${briefText}\n\nЧерновик по правилам:\n${draft}\n\nПрикреплённые фото:` },
+    ? [{ type: "text", text: `Бриф (JSON):\n${briefText}${draftPart}\n\nПрикреплённые фото:` },
        ...images.flatMap((im) => [
          { type: "text", text: `${String(im.tag).slice(0, 12)} — роль: ${String(im.role).slice(0, 40)} (${String(im.name).slice(0, 60)})${im.frame ? `, ${String(im.frame).slice(0, 60)}` : ""}` },
          { type: "image_url", image_url: { url: im.data } },
        ])]
-    : `Бриф (JSON):\n${briefText}\n\nЧерновик по правилам:\n${draft}`;
+    : `Бриф (JSON):\n${briefText}${draftPart}`;
 
   const upstream = await fetch(`${process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com"}/chat/completions`, {
     method: "POST",
@@ -49,7 +53,8 @@ export async function POST(req) {
       stream: true,
       // В режиме размышления токены рассуждений входят в max_tokens, поэтому запас большой
       max_tokens: 32000,
-      ...(model === MODELS.pro ? { reasoning_effort: "low" } : {}),
+      // Pro и длинные брифы — меньше размышлений, чтобы уложиться в 5 минут Vercel
+      ...(model === MODELS.pro ? { reasoning_effort: "low" } : longBrief ? { reasoning_effort: "medium" } : {}),
       messages: [
         { role: "system", content: systemPrompt({
           modelName: String(ctx.modelName || "Seedance 2.5").slice(0, 40),

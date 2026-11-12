@@ -151,12 +151,20 @@ async function runAi() {
     render();
     toast(truncated ? "Ответ оборвался: часть промпта может отсутствовать, попробуйте ещё раз" : "Промпт написан");
   } catch (e) {
-    state.ai = null;
-    state.aiError = e.message === "Failed to fetch" || e.message === "Load failed"
-      ? "Сервер ИИ недоступен из вашей сети. Проверьте интернет; если не помогает — откройте копию сайта prompt-studio-self.vercel.app или сообщите владельцу сайта, из какой вы страны."
-      : e.message;
+    const netErr = /failed to fetch|load failed|network|connection was lost/i.test(e.message || "");
+    const started = !!(state.ai && state.ai.en);
+    if (started) {
+      // Связь оборвалась посреди ответа: оставляем написанное и честно предупреждаем
+      Object.assign(state.ai, { streaming: false, truncated: true });
+      state.aiError = "Связь оборвалась на середине ответа — ниже то, что ИИ успел написать. Так бывает при очень долгом ответе или нестабильном интернете. Нажмите «Попробовать ещё раз».";
+    } else {
+      state.ai = null;
+      state.aiError = netErr
+        ? "Не удалось связаться с сервером ИИ. Проверьте интернет и попробуйте ещё раз. Если повторяется — откройте копию сайта prompt-studio-self.vercel.app или сообщите владельцу сайта, из какой вы страны и в каком браузере."
+        : e.message;
+    }
     render();
-    toast("ИИ не смог написать промпт — причина над результатом");
+    toast("ИИ не дописал промпт — причина над результатом");
   } finally {
     btn.disabled = false;
     btn.textContent = "Написать промпт с ИИ";
@@ -198,7 +206,10 @@ function bindAi() {
 function renderModeBanner() {
   const box = $("modeBanner");
   if (state.ai && state.ai.streaming) { box.hidden = true; return; }
-  if (state.aiError) {
+  if (state.aiError && state.ai) {
+    box.hidden = false; box.className = "mode-banner err";
+    box.innerHTML = `<div><b>Ответ неполный.</b> ${esc(state.aiError)}</div><button type="button" class="btn-ai" data-run-ai>Попробовать ещё раз</button>`;
+  } else if (state.aiError) {
     box.hidden = false; box.className = "mode-banner err";
     box.innerHTML = `<div><b>ИИ не смог написать промпт.</b> ${esc(state.aiError)}<br>Ниже — черновик без ИИ.</div><button type="button" class="btn-ai" data-run-ai>Попробовать ещё раз</button>`;
   } else if (!state.ai) {
